@@ -1,7 +1,7 @@
 === Revoking certificate authorities
 
 Trust can be configured to use a certificate revocation list (CRL) for revoked certificates that should no
-longer be trusted. The {@link io.vertx.core.net.NetClientOptions#addCrlPath(java.lang.String) crlPath} configures
+longer be trusted. The {@link io.vertx.core.net.ClientSSLOptions#addCrlPath(java.lang.String) crlPath} configures
 the crl list to use:
 
 [source,$lang]
@@ -32,7 +32,7 @@ This Cipher suite can be configured with a suite of enabled ciphers:
 
 When the enabled cipher suites is defined (i.e not empty), it takes precedence over the default cipher suites of the SSL engine.
 
-Cipher suite can be specified on the {@link io.vertx.core.net.NetServerOptions} or {@link io.vertx.core.net.NetClientOptions} configuration.
+Cipher suite can be specified on the {@link io.vertx.core.net.ServerSSLOptions} or {@link io.vertx.core.net.ClientSSLOptions} configuration.
 
 === Configuring TLS protocol versions
 
@@ -51,7 +51,7 @@ They can also be removed:
 {@link examples.SslExamples#removeEnabledTLSPrococol}
 ----
 
-Protocol versions can be specified on the {@link io.vertx.core.net.NetServerOptions} or {@link io.vertx.core.net.NetClientOptions} configuration.
+Protocol versions can be specified on the {@link io.vertx.core.net.ServerSSLOptions} or {@link io.vertx.core.net.ClientSSLOptions} configuration.
 
 NOTE: TLS 1.0 (TLSv1) and TLS 1.1 (TLSv1.1) are widely deprecated and have been disabled by default since Vert.x 4.4.0.
 

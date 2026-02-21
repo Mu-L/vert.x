@@ -14,7 +14,9 @@ package examples;
 import io.vertx.core.Vertx;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.*;
+import io.vertx.core.net.ClientSSLOptions;
 import io.vertx.core.net.JksOptions;
+import io.vertx.core.net.ServerSSLOptions;
 
 /**
  * @author <a href="mailto:julien@julienviet.com">Julien Viet</a>
@@ -22,12 +24,13 @@ import io.vertx.core.net.JksOptions;
 public class HTTP2Examples {
 
   public void example0(Vertx vertx) {
-    HttpServerOptions options = new HttpServerOptions()
-        .setUseAlpn(true)
-        .setSsl(true)
-        .setKeyCertOptions(new JksOptions().setPath("/path/to/my/keystore"));
+    HttpServerConfig config = new HttpServerConfig()
+        .setSsl(true);
 
-    HttpServer server = vertx.createHttpServer(options);
+    ServerSSLOptions sslOptions = new ServerSSLOptions()
+      .setKeyCertOptions(new JksOptions().setPath("/path/to/my/keystore"));
+
+    HttpServer server = vertx.createHttpServer(config, sslOptions);
   }
 
   public void example1(HttpServerRequest request) {
@@ -98,22 +101,23 @@ public class HTTP2Examples {
     response.sendFile("<html><head><script src=\"/main.js\"></script></head><body></body></html>");
   }
 
-  public void example7(Vertx vertx) {
+  public void example7_1(Vertx vertx) {
 
-    HttpClientOptions options = new HttpClientOptions().
-        setProtocolVersion(HttpVersion.HTTP_2).
-        setSsl(true).
-        setUseAlpn(true).
-        setTrustAll(true);
+    HttpClientConfig config = new HttpClientConfig()
+      .setSsl(true);
 
-    HttpClient client = vertx.createHttpClient(options);
+    ClientSSLOptions sslOptions = new ClientSSLOptions()
+      .setTrustAll(true);
+
+    HttpClient client = vertx.createHttpClient(config, sslOptions);
   }
 
-  public void example8(Vertx vertx) {
+  public void example7_2(Vertx vertx) {
 
-    HttpClientOptions options = new HttpClientOptions().setProtocolVersion(HttpVersion.HTTP_2);
+    HttpClientConfig config = new HttpClientConfig().
+      setVersions(HttpVersion.HTTP_2, HttpVersion.HTTP_1_1);
 
-    HttpClient client = vertx.createHttpClient(options);
+    HttpClient client = vertx.createHttpClient(config);
   }
 
   public void example9(HttpClientRequest request) {
@@ -197,8 +201,8 @@ public class HTTP2Examples {
     HttpConnection connection = request.connection();
   }
 
-  public void example17(Vertx vertx, HttpServerOptions http2Options) {
-    HttpServer server = vertx.createHttpServer(http2Options);
+  public void example17(Vertx vertx, HttpServerConfig http2Config) {
+    HttpServer server = vertx.createHttpServer(http2Config);
 
     server.connectionHandler(connection -> {
       System.out.println("A client connected");
@@ -209,10 +213,10 @@ public class HTTP2Examples {
     HttpConnection connection = request.connection();
   }
 
-  public void example19(Vertx vertx, HttpClientOptions options) {
+  public void example19(Vertx vertx, HttpClientConfig config) {
     vertx
       .httpClientBuilder()
-      .with(options)
+      .with(config)
       .withConnectHandler(connection -> {
         System.out.println("Connected to the server");
       })
@@ -277,9 +281,14 @@ public class HTTP2Examples {
   public void useMaxStreams(Vertx vertx) {
 
     // Uses up to 3 connections and up to 10 streams per connection
+    Http2ClientConfig http2Config = new Http2ClientConfig()
+      .setMultiplexingLimit(10);
+
     HttpClient client = vertx.createHttpClient(
-      new HttpClientOptions().setHttp2MultiplexingLimit(10),
-      new PoolOptions().setHttp2MaxSize(3)
+      new HttpClientConfig()
+        .setHttp2Config(http2Config),
+      new PoolOptions()
+        .setHttp2MaxSize(3)
     );
   }
 }

@@ -18,7 +18,7 @@ import io.vertx.core.VerticleBase;
 import io.vertx.core.Vertx;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpServer;
-import io.vertx.core.http.HttpServerOptions;
+import io.vertx.core.http.HttpServerConfig;
 import io.vertx.core.net.*;
 
 import java.time.Duration;
@@ -241,7 +241,8 @@ public class NetExamples {
   public void exampleNetworkActivityLoggingOnServer(Vertx vertx) {
 
     TcpServerConfig options = new TcpServerConfig()
-      .setNetworkLogging(new NetworkLogging());
+      .setNetworkLogging(new NetworkLogging()
+        .setEnabled(true));
 
     NetServer server = vertx.createNetServer(options);
   }
@@ -250,6 +251,7 @@ public class NetExamples {
 
     TcpServerConfig options = new TcpServerConfig()
       .setNetworkLogging(new NetworkLogging()
+        .setEnabled(true)
         .setDataFormat(ByteBufFormat.SIMPLE));
 
     NetServer server = vertx.createNetServer(options);
@@ -258,7 +260,8 @@ public class NetExamples {
   public void exampleNetworkActivityLoggingOnClient(Vertx vertx) {
 
     TcpClientConfig options = new TcpClientConfig()
-      .setNetworkLogging(new NetworkLogging());
+      .setNetworkLogging(new NetworkLogging()
+        .setEnabled(true));
 
     NetClient client = vertx.createNetClient(options);
   }
@@ -470,26 +473,30 @@ public class NetExamples {
   }
 
   public void configureTrafficShapingForHttpServer(Vertx vertx) {
-    HttpServerOptions options = new HttpServerOptions()
+    HttpServerConfig config = new HttpServerConfig()
       .setHost("localhost")
-      .setPort(1234)
+      .setPort(1234);
+
+    config.getTcpConfig()
       .setTrafficShapingOptions(new TrafficShapingOptions()
         .setInboundGlobalBandwidth(64 * 1024)
         .setOutboundGlobalBandwidth(128 * 1024));
 
-    HttpServer server = vertx.createHttpServer(options);
+    HttpServer server = vertx.createHttpServer(config);
   }
 
 
   public void dynamicallyUpdateTrafficShapingForHttpServer(Vertx vertx) {
-    HttpServerOptions options = new HttpServerOptions()
+    HttpServerConfig config = new HttpServerConfig()
       .setHost("localhost")
-      .setPort(1234)
+      .setPort(1234);
+
+    config.getTcpConfig()
       .setTrafficShapingOptions(new TrafficShapingOptions()
         .setInboundGlobalBandwidth(64 * 1024)
         .setOutboundGlobalBandwidth(128 * 1024));
 
-    HttpServer server = vertx.createHttpServer(options);
+    HttpServer server = vertx.createHttpServer(config);
     TrafficShapingOptions update = new TrafficShapingOptions()
       .setInboundGlobalBandwidth(2 * 64 * 1024) // twice
       .setOutboundGlobalBandwidth(128 * 1024); // unchanged

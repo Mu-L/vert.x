@@ -28,21 +28,24 @@ import io.vertx.core.file.OpenOptions;
 import io.vertx.core.http.ClientForm;
 import io.vertx.core.http.ClientMultipartForm;
 import io.vertx.core.http.Cookie;
+import io.vertx.core.http.Http1ClientConfig;
 import io.vertx.core.http.HttpClient;
 import io.vertx.core.http.HttpClientAgent;
+import io.vertx.core.http.HttpClientConfig;
 import io.vertx.core.http.HttpClientConnection;
-import io.vertx.core.http.HttpClientOptions;
 import io.vertx.core.http.HttpClientRequest;
 import io.vertx.core.http.HttpClientResponse;
+import io.vertx.core.http.HttpCompressionConfig;
 import io.vertx.core.http.HttpConnectOptions;
 import io.vertx.core.http.HttpHeaders;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpResponseExpectation;
 import io.vertx.core.http.HttpResponseHead;
 import io.vertx.core.http.HttpServer;
-import io.vertx.core.http.HttpServerOptions;
+import io.vertx.core.http.HttpServerConfig;
 import io.vertx.core.http.HttpServerRequest;
 import io.vertx.core.http.HttpServerResponse;
+import io.vertx.core.http.HttpVersion;
 import io.vertx.core.http.PoolOptions;
 import io.vertx.core.http.RequestOptions;
 import io.vertx.core.http.ServerWebSocket;
@@ -50,10 +53,15 @@ import io.vertx.core.http.WebSocket;
 import io.vertx.core.http.WebSocketClient;
 import io.vertx.core.http.WebSocketConnectOptions;
 import io.vertx.core.http.WebSocketFrame;
+import io.vertx.core.http.WebSocketServerConfig;
 import io.vertx.core.json.JsonObject;
+import io.vertx.core.net.ClientSSLOptions;
+import io.vertx.core.net.JksOptions;
 import io.vertx.core.net.NetSocket;
+import io.vertx.core.net.NetworkLogging;
 import io.vertx.core.net.ProxyOptions;
 import io.vertx.core.net.ProxyType;
+import io.vertx.core.net.ServerSSLOptions;
 import io.vertx.core.net.endpoint.LoadBalancer;
 import io.vertx.core.net.endpoint.ServerEndpoint;
 import io.vertx.core.streams.Pipe;
@@ -75,16 +83,27 @@ public class HTTPExamples {
 
   public void example2(Vertx vertx) {
 
-    HttpServerOptions options = new HttpServerOptions().setMaxWebSocketFrameSize(1000000);
+    HttpServerConfig config = new HttpServerConfig();
+    config.setWebSocketConfig(new WebSocketServerConfig()
+      .setMaxFrameSize(1_000_000)
+    );
 
-    HttpServer server = vertx.createHttpServer(options);
+    HttpServer server = vertx.createHttpServer(config);
+  }
+
+  public void setServerVersions(Vertx vertx) {
+
+    HttpServerConfig config = new HttpServerConfig()
+      .setVersions(HttpVersion.HTTP_2);
   }
 
   public void exampleServerLogging(Vertx vertx) {
 
-    HttpServerOptions options = new HttpServerOptions().setLogActivity(true);
+    HttpServerConfig config = new HttpServerConfig()
+      .setNetworkLogging(new NetworkLogging()
+        .setEnabled(true));
 
-    HttpServer server = vertx.createHttpServer(options);
+    HttpServer server = vertx.createHttpServer(config);
   }
 
   public void example3(Vertx vertx) {
@@ -355,8 +374,11 @@ public class HTTPExamples {
   }
 
   public void example29(Vertx vertx) {
-    HttpClientOptions options = new HttpClientOptions().setKeepAlive(false);
-    HttpClientAgent client = vertx.createHttpClient(options);
+    HttpClientConfig config = new HttpClientConfig()
+      .setHttp1Config(new Http1ClientConfig()
+        .setKeepAlive(false)
+      );
+    HttpClientAgent client = vertx.createHttpClient(config);
   }
 
   public void examplePoolConfiguration(Vertx vertx) {
@@ -365,15 +387,17 @@ public class HTTPExamples {
   }
 
   public void exampleClientLogging(Vertx vertx) {
-    HttpClientOptions options = new HttpClientOptions().setLogActivity(true);
-    HttpClientAgent client = vertx.createHttpClient(options);
+    HttpClientConfig config = new HttpClientConfig()
+      .setNetworkLogging(new NetworkLogging()
+        .setEnabled(true));
+    HttpClientAgent client = vertx.createHttpClient(config);
   }
 
-  public void exampleClientBuilder01(Vertx vertx, HttpClientOptions options) {
-    // Pretty much like vertx.createHttpClient(options)
+  public void exampleClientBuilder01(Vertx vertx, HttpClientConfig config) {
+    // Pretty much like vertx.createHttpClient(config)
     HttpClientAgent build = vertx
       .httpClientBuilder()
-      .with(options)
+      .with(config)
       .build();
   }
 
@@ -388,10 +412,11 @@ public class HTTPExamples {
   public void example31(Vertx vertx) {
 
     // Set the default host
-    HttpClientOptions options = new HttpClientOptions().setDefaultHost("wibble.com");
+    HttpClientConfig config = new HttpClientConfig()
+      .setDefaultHost("wibble.com");
 
     // Can also set default port if you want...
-    HttpClientAgent client = vertx.createHttpClient(options);
+    HttpClientAgent client = vertx.createHttpClient(config);
     client
       .request(HttpMethod.GET, "/some-uri")
       .compose(request -> request.send())
@@ -922,7 +947,7 @@ public class HTTPExamples {
   public void exampleFollowRedirect02(Vertx vertx) {
 
     HttpClientAgent client = vertx.createHttpClient(
-        new HttpClientOptions()
+        new HttpClientConfig()
             .setMaxRedirects(32));
 
     client
@@ -1191,33 +1216,42 @@ public class HTTPExamples {
 
   public void example58(Vertx vertx) {
 
-    HttpClientOptions options = new HttpClientOptions()
-        .setProxyOptions(new ProxyOptions().setType(ProxyType.HTTP)
-            .setHost("localhost").setPort(3128)
-            .setUsername("username").setPassword("secret"));
-    HttpClientAgent client = vertx.createHttpClient(options);
+    HttpClientConfig config = new HttpClientConfig();
+    config.getTcpConfig()
+      .setProxyOptions(new ProxyOptions()
+        .setType(ProxyType.HTTP)
+        .setHost("localhost")
+        .setPort(3128)
+        .setUsername("username")
+        .setPassword("secret"));
+    HttpClientAgent client = vertx.createHttpClient(config);
 
   }
 
   public void example59(Vertx vertx) {
-
-    HttpClientOptions options = new HttpClientOptions()
-        .setProxyOptions(new ProxyOptions().setType(ProxyType.SOCKS5)
-            .setHost("localhost").setPort(1080)
-            .setUsername("username").setPassword("secret"));
-    HttpClientAgent client = vertx.createHttpClient(options);
+    HttpClientConfig config = new HttpClientConfig();
+    config.getTcpConfig()
+      .setProxyOptions(new ProxyOptions()
+        .setType(ProxyType.SOCKS5)
+        .setHost("localhost")
+        .setPort(1080)
+        .setUsername("username")
+        .setPassword("secret"));
+    HttpClientAgent client = vertx.createHttpClient(config);
 
   }
 
   public void nonProxyHosts(Vertx vertx) {
-
-    HttpClientOptions options = new HttpClientOptions()
-      .setProxyOptions(new ProxyOptions().setType(ProxyType.SOCKS5)
+    HttpClientConfig config = new HttpClientConfig();
+    config.getTcpConfig()
+      .setProxyOptions(new ProxyOptions()
+        .setType(ProxyType.SOCKS5)
         .setHost("localhost").setPort(1080)
-        .setUsername("username").setPassword("secret"))
+        .setUsername("username")
+        .setPassword("secret"))
       .addNonProxyHost("*.foo.com")
       .addNonProxyHost("localhost");
-    HttpClientAgent client = vertx.createHttpClient(options);
+    HttpClientAgent client = vertx.createHttpClient(config);
 
   }
 
@@ -1240,9 +1274,11 @@ public class HTTPExamples {
 
   public void example60(Vertx vertx) {
 
-    HttpClientOptions options = new HttpClientOptions()
-        .setProxyOptions(new ProxyOptions().setType(ProxyType.HTTP));
-    HttpClientAgent client = vertx.createHttpClient(options);
+    HttpClientConfig config = new HttpClientConfig();
+    config.getTcpConfig()
+        .setProxyOptions(new ProxyOptions()
+          .setType(ProxyType.HTTP));
+    HttpClientAgent client = vertx.createHttpClient(config);
     client
       .request(HttpMethod.GET, "ftp://ftp.gnu.org/gnu/")
       .compose(request -> request.send())
@@ -1254,10 +1290,12 @@ public class HTTPExamples {
 
   public void example61(Vertx vertx) {
 
-    HttpServerOptions options = new HttpServerOptions()
+    HttpServerConfig config = new HttpServerConfig();
+    config
+      .getTcpConfig()
       .setUseProxyProtocol(true);
 
-    HttpServer server = vertx.createHttpServer(options);
+    HttpServer server = vertx.createHttpServer(config);
     server.requestHandler(request -> {
       // Print the actual client address provided by the HA proxy protocol instead of the proxy address
       System.out.println(request.remoteAddress());
@@ -1306,6 +1344,84 @@ public class HTTPExamples {
       });
   }
 
+  public void sslServerConfiguration(Vertx vertx) {
+    ServerSSLOptions sslOptions = new ServerSSLOptions()
+      .setKeyCertOptions(
+        new JksOptions().
+          setPath("/path/to/your/server-keystore.jks").
+          setPassword("password-of-your-keystore")
+      );
+
+    HttpServerConfig config = new HttpServerConfig()
+      .setSsl(true);
+
+    HttpServer server = vertx.createHttpServer(config, sslOptions);
+  }
+
+  public void sslClientConfiguration(Vertx vertx) {
+    ClientSSLOptions sslOptions = new ClientSSLOptions()
+      .setTrustOptions(new JksOptions().
+        setPath("/path/to/your/truststore.jks").
+        setPassword("password-of-your-truststore")
+      );
+
+    HttpClientConfig config = new HttpClientConfig()
+      .setSsl(true);
+
+    HttpClientAgent client = vertx.createHttpClient(config);
+  }
+
+  public void serverSNIConfig(Vertx vertx) {
+    ServerSSLOptions sslOptions = new ServerSSLOptions()
+      .setKeyCertOptions(new JksOptions().
+        setPath("/path/to/your/server-keystore.jks").
+        setPassword("password-of-your-keystore"))
+      .setSni(true);
+  }
+
+  public void sslClientRequestConfiguration(Vertx vertx, int port, String host) {
+    ClientSSLOptions sslOptions = new ClientSSLOptions()
+      .setTrustOptions(new JksOptions().
+        setPath("/path/to/your/truststore.jks").
+        setPassword("password-of-your-truststore")
+      );
+
+    HttpClientAgent client = vertx.createHttpClient(new HttpClientConfig(), sslOptions);
+
+    client
+      .request(new RequestOptions()
+        .setHost("localhost")
+        .setPort(8080)
+        .setURI("/")
+        .setSsl(true))
+      .compose(request -> request.send())
+      .onSuccess(response -> {
+        System.out.println("Received response with status code " + response.statusCode());
+      });
+  }
+
+  public void sslClientRequestConfiguration2(Vertx vertx, int port, String host) {
+    HttpClientAgent client = vertx.createHttpClient();
+
+    ClientSSLOptions sslOptions = new ClientSSLOptions()
+      .setTrustOptions(new JksOptions().
+        setPath("/path/to/your/truststore.jks").
+        setPassword("password-of-your-truststore")
+      );
+
+    client
+      .request(new RequestOptions()
+        .setHost("localhost")
+        .setPort(8080)
+        .setURI("/")
+        .setSsl(true)
+        .setSslOptions(sslOptions))
+      .compose(request -> request.send())
+      .onSuccess(response -> {
+        System.out.println("Received response with status code " + response.statusCode());
+      });
+  }
+
   public static void setIdentityContentEncodingHeader(HttpServerRequest request) {
     // Disable compression and send an image
     request.response()
@@ -1314,15 +1430,18 @@ public class HTTPExamples {
   }
 
   public static void setCompressors() {
-    new HttpServerOptions()
-      .addCompressor(io.netty.handler.codec.compression.StandardCompressionOptions.gzip())
-      .addCompressor(io.netty.handler.codec.compression.StandardCompressionOptions.deflate())
-      .addCompressor(io.netty.handler.codec.compression.StandardCompressionOptions.brotli())
-      .addCompressor(io.netty.handler.codec.compression.StandardCompressionOptions.zstd());
+    new HttpServerConfig()
+      .setCompression(new HttpCompressionConfig()
+        .setCompressionEnabled(true)
+        .addGzip()
+        .addDeflate()
+      );
   }
 
   public static void compressorConfig() {
-    GzipOptions gzip = StandardCompressionOptions.gzip(6, 15, 8);
+    new HttpServerConfig()
+      .setCompression(new HttpCompressionConfig()
+        .addGzip(6, 15, 8));
   }
 
   public void serverShutdown(HttpServer server) {
@@ -1359,7 +1478,10 @@ public class HTTPExamples {
   }
 
   public static void httpClientSharing1(Vertx vertx) {
-    HttpClientAgent client = vertx.createHttpClient(new HttpClientOptions().setShared(true));
+    HttpClientConfig config = new HttpClientConfig()
+      .setShared(true);
+
+    HttpClientAgent client = vertx.createHttpClient(config);
     vertx.deployVerticle(() -> new AbstractVerticle() {
       @Override
       public void start() throws Exception {
@@ -1376,7 +1498,9 @@ public class HTTPExamples {
         // Get or create a shared client
         // this actually creates a lease to the client
         // when the verticle is undeployed, the lease will be released automaticaly
-        client = vertx.createHttpClient(new HttpClientOptions().setShared(true).setName("my-client"));
+        client = vertx.createHttpClient(new HttpClientConfig()
+          .setShared(true)
+          .setName("my-client"));
       }
     }, new DeploymentOptions().setInstances(4));
   }
@@ -1387,7 +1511,11 @@ public class HTTPExamples {
       @Override
       public void start() {
         // The client creates and use two event-loops for 4 instances
-        client = vertx.createHttpClient(new HttpClientOptions().setShared(true).setName("my-client"), new PoolOptions().setEventLoopSize(2));
+        client = vertx.createHttpClient(
+          new HttpClientConfig()
+            .setShared(true)
+            .setName("my-client"),
+          new PoolOptions().setEventLoopSize(2));
       }
     }, new DeploymentOptions().setInstances(4));
   }
