@@ -82,6 +82,7 @@ public interface EndpointResolver<A extends Address, S, D, E> {
     return true;
   }
 
+  // TODO : remove this I think
   default void reportFailure(S endpoint, Throwable failure) {
   }
 

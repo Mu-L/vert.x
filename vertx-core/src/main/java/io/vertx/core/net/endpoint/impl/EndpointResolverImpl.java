@@ -367,9 +367,9 @@ public class EndpointResolverImpl<S, A extends Address, N> implements EndpointRe
         }
         @Override
         public void reportFailure(Throwable failure) {
-          if (!connected && failure instanceof ConnectException) {
-            endpointResolver.reportFailure(endpoint, failure);
-          }
+//          if (!connected && failure instanceof ConnectException) {
+//            endpointResolver.reportFailure(endpoint, failure);
+//          }
           metrics.reportFailure(metric, failure);
         }
       };
