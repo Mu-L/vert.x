@@ -146,9 +146,11 @@ public class OriginResolver<L> implements EndpointResolver<Origin, OriginServer,
       return null;
     }
 
-    class Resolution {
-      String host;
-      Map<OriginAlternative, Long> alternatives = new LinkedHashMap<>();
+    class Resolution extends LinkedHashMap<OriginAlternative, Long> {
+      final String host;
+      public Resolution(String host) {
+        this.host = host;
+      }
     }
 
     // Maintain order
@@ -171,11 +173,10 @@ public class OriginResolver<L> implements EndpointResolver<Origin, OriginServer,
       } else {
         Resolution resolution = hosts.get(alternative.authority.host());
         if (resolution == null) {
-          resolution = new Resolution();
-          resolution.host = alternative.authority.host();
+          resolution = new Resolution(alternative.authority.host());
           hosts.put(alternative.authority.host(), resolution);
         }
-        resolution.alternatives.put(alternative, maxAge);
+        resolution.put(alternative, maxAge);
       }
     }
     int size = hosts.size();
@@ -200,7 +201,7 @@ public class OriginResolver<L> implements EndpointResolver<Origin, OriginServer,
         for (int i = 0;i < size;i++) {
           Resolution r = resolutions.get(i);
           Future<InetAddress> f = list.get(i);
-          for (Map.Entry<OriginAlternative, Long> entry : r.alternatives.entrySet()) {
+          for (Map.Entry<OriginAlternative, Long> entry : r.entrySet()) {
             if (f.succeeded()) {
               OriginAlternative alternative = entry.getKey();
               long maxAge = entry.getValue();
