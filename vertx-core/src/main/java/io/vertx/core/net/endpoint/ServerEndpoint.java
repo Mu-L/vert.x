@@ -34,6 +34,11 @@ public interface ServerEndpoint {
    */
   SocketAddress address();
 
+  /**
+   * @return the server protocol id, optional it can be null
+   */
+  String protocolId();
+
   boolean isAvailable();
 
   /**

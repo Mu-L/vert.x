@@ -35,6 +35,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.regex.Pattern;
@@ -593,17 +594,49 @@ public class HttpClientImpl extends HttpClientBase implements HttpClientInternal
         // For HTTPS we must handle SNI to consider an alternative
         HostAndPort altUsed;
         if (followAlternativeServices && server instanceof Origin && ("https".equals((originServer = (Origin)server).scheme) && originServer.host.indexOf('.') > 0)) {
-          lookup = endpoint.selectServer(s -> {
-            OriginServer unwrap = (OriginServer) s.unwrap();
-            return protocol_ == unwrap.protocol;
-          });
-          protocol = protocol_;
+          if (protocol_ != null) {
+            ProtocolFilter filter;
+            switch (protocol_) {
+              case H3:
+                filter = ProtocolFilter.H3;
+                break;
+              case H2:
+                filter = ProtocolFilter.H2;
+                break;
+              case HTTP_1_1:
+                filter = ProtocolFilter.HTTP_1_1;
+                break;
+              case HTTP_1_0:
+                filter = ProtocolFilter.HTTP_1_0;
+                break;
+              default:
+                throw new AssertionError();
+            }
+            lookup = endpoint.selectServer(filter);
+            protocol = protocol_;
+          } else {
+            Set<String> protocols = endpoint.protocols();
+            if (!protocols.isEmpty()) {
+              List<ProtocolFilter> list = List.of(ProtocolFilter.H3, ProtocolFilter.H2, ProtocolFilter.HTTP_1_1, ProtocolFilter.HTTP_1_0);
+              lookup = null;
+              protocol = null;
+              for (ProtocolFilter candidate : list) {
+                if (protocols.contains(candidate.protocol.id())) {
+                  lookup = endpoint.selectServer(candidate);
+                  protocol = candidate.protocol;
+                }
+              }
+            } else {
+              lookup = null;
+              protocol = null;
+            }
+          }
           if (lookup == null) {
             altUsed = null;
             lookup = endpoint.selectServer();
           } else {
             OriginServer unwrap = (OriginServer) lookup.unwrap();
-            altUsed = unwrap.authority;
+            altUsed = unwrap.primary ? null : unwrap.authority;
           }
         } else {
           protocol = protocol_;

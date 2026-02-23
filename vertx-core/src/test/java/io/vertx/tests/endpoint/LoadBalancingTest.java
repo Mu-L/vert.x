@@ -42,6 +42,10 @@ public class LoadBalancingTest {
         return true;
       }
       @Override
+      public String protocolId() {
+        return null;
+      }
+      @Override
       public Object unwrap() {
         return null;
       }

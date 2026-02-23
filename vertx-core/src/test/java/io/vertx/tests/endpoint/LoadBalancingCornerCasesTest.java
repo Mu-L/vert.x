@@ -51,6 +51,10 @@ public class LoadBalancingCornerCasesTest {
         return true;
       }
       @Override
+      public String protocolId() {
+        return null;
+      }
+      @Override
       public String key() {
         return "";
       }

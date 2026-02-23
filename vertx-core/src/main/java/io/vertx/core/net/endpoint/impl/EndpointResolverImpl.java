@@ -103,6 +103,11 @@ public class EndpointResolverImpl<S, A extends Address, N> implements EndpointRe
     }
 
     @Override
+    public Set<String> protocols() {
+      return endpointResolver.endpoint(state).protocols;
+    }
+
+    @Override
     public List<ServerEndpoint> servers() {
       return endpointResolver.endpoint(state).servers;
     }
@@ -254,10 +259,24 @@ public class EndpointResolverImpl<S, A extends Address, N> implements EndpointRe
     // Put stuff here I think ...
     final List<ServerEndpoint> servers;
     final Map<Predicate<ServerEndpoint>, View> views;
+    final Set<String> protocols;
 
     private ListOfServers(List<ServerEndpoint> servers) {
+
+      Set<String> protocols = Collections.emptySet();
+      for (ServerEndpoint server : servers) {
+        String protocol = server.protocolId();
+        if (protocol != null) {
+          if (protocols.isEmpty()) {
+            protocols = new HashSet<>(3);
+          }
+          protocols.add(protocol);
+        }
+      }
+
       this.servers = servers;
       this.views = new ConcurrentHashMap<>();
+      this.protocols = protocols;
     }
 
     @Override
@@ -317,6 +336,10 @@ public class EndpointResolverImpl<S, A extends Address, N> implements EndpointRe
     @Override
     public SocketAddress address() {
       return endpointResolver.addressOf(endpoint);
+    }
+    @Override
+    public String protocolId() {
+      return endpointResolver.protocolOf(endpoint);
     }
     @Override
     public ServerInteraction newInteraction() {

@@ -13,6 +13,7 @@ package io.vertx.core.http.impl;
 import io.vertx.core.Completable;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
+import io.vertx.core.http.HttpProtocol;
 import io.vertx.core.internal.VertxInternal;
 import io.vertx.core.internal.resolver.NameResolver;
 import io.vertx.core.net.Address;
@@ -86,6 +87,12 @@ public class OriginResolver<L> implements EndpointResolver<Origin, OriginServer,
   @Override
   public SocketAddress addressOf(OriginServer server) {
     return server.address != null ? server.address : null;
+  }
+
+  @Override
+  public String protocolOf(OriginServer server) {
+    HttpProtocol protocol = server.protocol;
+    return protocol != null ? protocol.id() : null;
   }
 
   @Override
