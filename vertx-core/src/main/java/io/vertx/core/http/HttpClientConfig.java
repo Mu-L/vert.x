@@ -57,9 +57,9 @@ public class HttpClientConfig {
   public static final long DEFAULT_QUIC_INITIAL_MAX_DATA = 10_485_760L;
   public static final long DEFAULT_QUIC_INITIAL_MAX_STREAM_DATA_BIDI_LOCAL = 1_048_576L;
   public static final long DEFAULT_QUIC_INITIAL_MAX_STREAM_DATA_BIDI_REMOTE = 0L;
-  public static final long DEFAULT_QUIC_INITIAL_MAX_STREAM_DATA_UNI = 1_048_576L;
+  public static final long DEFAULT_QUIC_INITIAL_MAX_STREAM_DATA_UNI = 32_768L;
   public static final long DEFAULT_QUIC_INITIAL_MAX_STREAM_BIDI = 0L;
-  public static final long DEFAULT_QUIC_INITIAL_MAX_STREAM_UNI = 1L;
+  public static final long DEFAULT_QUIC_INITIAL_MAX_STREAM_UNI = 3L;
 
   private TcpClientConfig tcpConfig;
   private QuicClientConfig quicConfig;
