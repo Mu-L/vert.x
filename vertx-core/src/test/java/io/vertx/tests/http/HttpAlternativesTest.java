@@ -133,6 +133,11 @@ public class HttpAlternativesTest extends VertxTestBase {
   }
 
   @Test
+  public void testHttp1ToHttp2MultipleProtocols() {
+    testFollowProtocol(HttpVersion.HTTP_1_1, HttpVersion.HTTP_2, "h2=\":4044\",another=\":4045\"", "host2.com:4044");
+  }
+
+  @Test
   public void testHttp1ToHttp3Protocol() {
     testFollowProtocol(HttpVersion.HTTP_1_1, HttpVersion.HTTP_3, "h3=\"host2.com:4044\"", "host2.com:4044");
   }

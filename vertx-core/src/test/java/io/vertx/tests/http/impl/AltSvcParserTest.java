@@ -97,8 +97,18 @@ public class AltSvcParserTest {
   public void testParseAltSvc() {
     AltSvc.Clear clear = (AltSvc.Clear)AltSvc.parseAltSvc("clear");
     assertNotNull(clear);
-    AltSvc.ListOfValue values = (AltSvc.ListOfValue)AltSvc.parseAltSvc("abc=\":10\"" + "," + "abc=\":12\"");
+    AltSvc.ListOfValue values = (AltSvc.ListOfValue)AltSvc.parseAltSvc("abc=\":10\"" + "," + "def=\"ghi:12\"");
     assertEquals(2, values.size());
+    AltSvc.Value v1 = values.get(0);
+    assertEquals("abc", v1.protocolId());
+    assertNotNull(v1.altAuthority());
+    assertEquals(10, v1.altAuthority().port());
+    assertEquals("", v1.altAuthority().host());
+    AltSvc.Value v2 = values.get(1);
+    assertEquals("def", v2.protocolId());
+    assertNotNull(v2.altAuthority());
+    assertEquals(12, v2.altAuthority().port());
+    assertEquals("ghi", v2.altAuthority().host());
     values = (AltSvc.ListOfValue)AltSvc.parseAltSvc("abc=\":10\"" + ",");
     assertNull(values);
     values = (AltSvc.ListOfValue)AltSvc.parseAltSvc("abc=\":10\"" + " a");
