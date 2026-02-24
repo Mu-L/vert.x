@@ -377,7 +377,7 @@ You should read the <<netty-logging>> section.
 
 TCP server (Net/Http) can be configured with traffic shaping options to enable bandwidth limiting. Both inbound and outbound
 bandwidth can be limited through {@link io.vertx.core.net.TrafficShapingOptions}. For NetServer, traffic shaping options can be set
-through {@link io.vertx.core.net.TcpServerConfig} and for HttpServer it can be set through {@link io.vertx.core.http.HttpServerOptions}.
+through {@link io.vertx.core.net.TcpServerConfig} and for HttpServer it can be set through {@link io.vertx.core.http.HttpServerConfig#getTcpConfig()}.
 
 [source,$lang]
 ----

@@ -85,16 +85,18 @@ public class HttpServerConfig {
 
     HttpCompressionConfig compression;
     if (options.isCompressionSupported() || options.isDecompressionSupported()) {
-      List<CompressionOptions> compressors = options.getCompression().getCompressors();
+      Collection<CompressionOptions> compressors = options.getCompression().getCompressors();
+      compression = new HttpCompressionConfig();
       if (compressors == null) {
         int compressionLevel = options.getCompressionLevel();
-        compressors = Arrays.asList(StandardCompressionOptions.gzip(compressionLevel, 15, 8), StandardCompressionOptions.deflate(compressionLevel, 15, 8));
+        compression.addGzip(compressionLevel);
+        compression.addDeflate(compressionLevel);
+      } else {
+        compression.setCompressors(new ArrayList<>(compressors));
       }
-      compression = new HttpCompressionConfig();
       compression.setCompressionEnabled(options.isCompressionSupported());
       compression.setDecompressionEnabled(options.isDecompressionSupported());
       compression.setContentSizeThreshold(options.getCompressionContentSizeThreshold());
-      compression.setCompressors(compressors);
     } else {
       compression = null;
     }

@@ -23,6 +23,7 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.core.net.NetClient;
 import io.vertx.core.net.NetServer;
 import io.vertx.core.net.SocketAddress;
+import io.vertx.core.net.TcpConfig;
 import io.vertx.core.spi.VertxMetricsFactory;
 import io.vertx.core.spi.VertxTracerFactory;
 import io.vertx.core.spi.cluster.ClusterManager;
@@ -513,8 +514,17 @@ public class CoreExamples {
   }
 
   public void configureBSDOptions(Vertx vertx, boolean reusePort) {
+    HttpServerConfig config = new HttpServerConfig();
+
+    TcpConfig tcpConfig = config
+      .getTcpConfig()
+      .getTransportConfig();
+
     // Available on BSD
-    vertx.createHttpServer(new HttpServerOptions().setReusePort(reusePort));
+    tcpConfig
+      .setReusePort(reusePort);
+
+    vertx.createHttpServer(config);
   }
 
   public void tcpServerWithDomainSockets(Vertx vertx) {

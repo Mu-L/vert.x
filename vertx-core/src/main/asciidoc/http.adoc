@@ -1,6 +1,6 @@
 == Writing HTTP servers and clients
 
-Vert.x allows you to easily write non blocking HTTP clients and servers.
+Vert.x allows you to easily write non-blocking HTTP clients and servers.
 
 Vert.x supports the HTTP/1.0, HTTP/1.1 and HTTP/2 protocols.
 
@@ -9,7 +9,7 @@ HTTP/2 protocol.
 
 === Creating an HTTP Server
 
-The simplest way to create an HTTP server, using all default options is as follows:
+The simplest way to create an HTTP server, using all default config is as follows:
 
 [source,$lang]
 ----
@@ -18,7 +18,7 @@ The simplest way to create an HTTP server, using all default options is as follo
 
 === Configuring an HTTP server
 
-If you don't want the default, a server can be configured by passing in a {@link io.vertx.core.http.HttpServerOptions}
+If you don't want the default, a server can be configured by passing in a {@link io.vertx.core.http.HttpServerConfig}
 instance when creating it:
 
 [source,$lang]
@@ -34,26 +34,20 @@ Vert.x supports HTTP/2 over TLS `h2` and over TCP `h2c`.
 - `h2c` identifies the HTTP/2 protocol when using in clear text over TCP, such connections are established either with
 an HTTP/1.1 upgraded request or directly
 
-To handle `h2` requests, TLS must be enabled along with {@link io.vertx.core.http.HttpServerOptions#setUseAlpn(boolean)}:
+To handle `h2` requests, TLS must be enabled:
 
 [source,$lang]
 ----
 {@link examples.HTTP2Examples#example0}
 ----
 
-ALPN is a TLS extension that negotiates the protocol before the client and the server start to exchange data.
+With plain text (TLS is disabled), the server handle `h2c` requests and will upgrade any request HTTP/1.1 that wants to
+upgrade to HTTP/2. It will also accept a direct `h2c` (with prior knowledge) connection beginning
+with the `PRI * HTTP/2.0\r\nSM\r\n` preface.
 
-Clients that don't support ALPN will still be able to do a _classic_ SSL handshake.
+WARNING: browsers do not support `h2c`, for serving websites you should use `h2` and not `h2c`.
 
-ALPN will usually agree on the `h2` protocol, although `http/1.1` can be used if the server or the client decides
-so.
-
-To handle `h2c` requests, TLS must be disabled, the server will upgrade to HTTP/2 any request HTTP/1.1 that wants to
-upgrade to HTTP/2. It will also accept a direct `h2c` connection beginning with the `PRI * HTTP/2.0\r\nSM\r\n` preface.
-
-WARNING: most browsers won't support `h2c`, so for serving web sites you should use `h2` and not `h2c`.
-
-When a server accepts an HTTP/2 connection, it sends to the client its {@link io.vertx.core.http.HttpServerOptions#getInitialSettings initial settings}.
+When a server accepts an HTTP/2 connection, it sends to the client its {@link io.vertx.core.http.Http2ServerConfig#getInitialSettings initial settings}.
 The settings define how the client can use the connection, the default initial settings for a server are:
 
 - {@link io.vertx.core.http.Http2Settings#getMaxConcurrentStreams}: `100` as recommended by the HTTP/2 RFC
@@ -61,21 +55,14 @@ The settings define how the client can use the connection, the default initial s
 
 === Configuring server supported HTTP versions
 
-Default supported HTTP versions depends on the server configuration.
+By default, an HTTP server accepts HTTP/1.1 and HTTP/2 protocols.
 
-- when TLS is disabled
-  - HTTP/1.1, HTTP/1.0
-  - HTTP/2 when {@link io.vertx.core.http.HttpServerOptions#isHttp2ClearTextEnabled} is `true`
-- when TLS is enabled and ALPN disabled
-  - HTTP/1.1 and HTTP/1.0
-- when TLS is enabled and ALPN enabled
-  - the protocols defined by {@link io.vertx.core.http.HttpServerOptions#getAlpnVersions}: by default HTTP/1.1 and HTTP/2
+Supported HTTP versions depends on {@link io.vertx.core.http.HttpServerConfig} versions.
 
-If you want to disable HTTP/2 on the server
-- when TLS is disabled, set {@link io.vertx.core.http.HttpServerOptions#setHttp2ClearTextEnabled} to `false`
-- when TLS is enabled
-  - set ({@link io.vertx.core.http.HttpServerOptions#isUseAlpn}) to `false`
-  - _or_ remove HTTP/2 from the {@link io.vertx.core.http.HttpServerOptions#getAlpnVersions} list
+[source,$lang]
+----
+{@link examples.HTTPExamples#setServerVersions}
+----
 
 === Logging network server activity
 
@@ -187,9 +174,9 @@ For example, if the request URI was `a/b/c/page.html?param1=abc&param2=xyz
 
 Then the path would be `/a/b/c/page.html`
 
-==== Request query
+==== Request query string
 
-Use {@link io.vertx.core.http.HttpServerRequest#query} to return the query part of the URI
+Use {@link io.vertx.core.http.HttpServerRequest#query} to return the query string part of the URI
 
 For example, if the request URI was `a/b/c/page.html?param1=abc&param2=xyz`
 
@@ -213,7 +200,7 @@ It also has case-insensitive keys, that means you can do the following:
 
 Use {@link io.vertx.core.http.HttpServerRequest#authority} to return the authority of the HTTP request.
 
-For HTTP/1.x requests the `host` header is returned, for HTTP/1 requests the `:authority` pseudo header is returned.
+For HTTP/1.x requests the `host` header is returned, for HTTP/2 requests the `:authority` pseudo header is returned.
 
 ==== Request parameters
 
@@ -314,7 +301,7 @@ once the entire body has been read:
 
 Form attributes have a maximum size of `8192` bytes. When the client submits a form with an attribute
 size greater than this value, the file upload triggers an exception on `HttpServerRequest` exception handler. You
-can set a different maximum size with {@link io.vertx.core.http.HttpServerOptions#setMaxFormAttributeSize}.
+can set a different maximum size with {@link io.vertx.core.http.HttpServerConfig#setMaxFormAttributeSize}.
 
 ==== Handling form file uploads
 
@@ -395,8 +382,8 @@ Here's an example of querying and adding cookies:
 Vert.x can handle compressed body payloads which are encoded by the client with the _deflate_, _gzip_, _snappy_ or _brotli_
 algorithms.
 
-To enable decompression set {@link io.vertx.core.http.HttpServerOptions#setDecompressionSupported(boolean)} on the
-options when creating the server.
+To enable decompression set {@link io.vertx.core.http.HttpCompressionConfig#setDecompressionEnabled(boolean)} on the
+compression configuration when creating the server.
 
 Snappy is supported without external dependencies.
 
@@ -533,7 +520,7 @@ You can close the underlying TCP connection with {@link io.vertx.core.http.HttpC
 Non keep-alive connections will be automatically closed by Vert.x when the response is ended.
 
 Keep-alive connections are not automatically closed by Vert.x by default. If you want keep-alive connections to be
-closed after an idle time, then you configure {@link io.vertx.core.http.HttpServerOptions#setIdleTimeout}.
+closed after an idle time, then you configure {@link io.vertx.core.http.HttpServerConfig#setIdleTimeout}.
 
 HTTP/2 connections send a `GOAWAY` frame before closing the response.
 
@@ -757,7 +744,7 @@ If the client does not support HTTP compression the responses are sent back with
 
 This allows to handle Client that support HTTP Compression and those that not support it at the same time.
 
-To enable compression use can configure it with {@link io.vertx.core.http.HttpServerOptions#setCompressionSupported}.
+To enable compression use can configure it with {@link io.vertx.core.http.HttpCompressionConfig#setCompressionEnabled}.
 
 By default, compression is not enabled.
 
@@ -788,27 +775,28 @@ Using compression levels higher that 1-2 usually allows to save just some bytes 
 at every request body generation ) and in the same way it affects client(s) while decoding (inflating) received responses, operation that becomes more CPU-intensive
 the more the level increases.
 
-By default - if compression is enabled via {@link io.vertx.core.http.HttpServerOptions#setCompressionSupported} - Vert.x will use '6' as compression level,
-but the parameter can be configured to address any case with {@link io.vertx.core.http.HttpServerOptions#setCompressionLevel}.
-
 It may not make sense to compress responses under certain size thresholds where the trade-off between CPU and saved network bytes is not beneficial.
-The minimum response content size threshold for compression can be configured via {@link io.vertx.core.http.HttpServerOptions#setCompressionContentSizeThreshold}.
+The minimum response content size threshold for compression can be configured via {@link io.vertx.core.http.HttpCompressionConfig#setContentSizeThreshold}.
 For example, if set to '100', responses under 100 bytes will not be compressed. By default, it is '0' which means all content can be compressed.
 
 === HTTP compression algorithms
 
-Vert.x supports out of the box deflate and gzip.
+Vert.x supports multiple compression algorithms:
 
-Brotli, snappy and zstandard can also be used.
+- Gzip
+- Deflate
+- Snappy
+- Brotli
+- Zstandard
+
+you can configure them easily.
 
 [source,$lang]
 ----
 {@link examples.HTTPExamples#setCompressors}
 ----
 
-NOTE: use {@link io.netty.handler.codec.compression.StandardCompressionOptions} static methods to create {@link io.netty.handler.codec.compression.CompressionOptions}
-
-Brotli and zstandard libraries need to be added to the classpath, snappy is provided by default.
+Brotli and zstandard libraries need to be added to your dependencies.
 
 * Maven (in your `pom.xml`):
 
@@ -854,41 +842,49 @@ You create an {@link io.vertx.core.http.HttpClient} instance with default option
 {@link examples.HTTPExamples#example28}
 ----
 
-If you want to configure options for the client, you create it as follows:
+If you want to configure the client, you create it as follows:
 
 [source,$lang]
 ----
 {@link examples.HTTPExamples#example29}
 ----
 
-Vert.x supports HTTP/2 over TLS `h2` and over TCP `h2c`.
+Vert.x supports `h2` (HTTP/2 over TCP/TLS) and `h2c` (HTTP/2 over TCP).
 
-By default, the http client performs HTTP/1.1 requests, to perform HTTP/2 requests the {@link io.vertx.core.http.HttpClientOptions#setProtocolVersion}
-must be set to {@link io.vertx.core.http.HttpVersion#HTTP_2}.
+=== Making SSL requests
 
-For `h2` requests, TLS must be enabled with _Application-Layer Protocol Negotiation_:
-
-[source,$lang]
-----
-{@link examples.HTTP2Examples#example7}
-----
-
-For `h2c` requests, TLS must be disabled, the client will do an HTTP/1.1 requests and try an upgrade to HTTP/2:
+By default, the client supports HTTP/1.1 and HTTP/2
 
 [source,$lang]
 ----
-{@link examples.HTTP2Examples#example8}
+{@link examples.HTTP2Examples#example7_1}
 ----
 
-`h2c` connections can also be established directly, i.e. connection started with a prior knowledge, when
-{@link io.vertx.core.http.HttpClientOptions#setHttp2ClearTextUpgrade(boolean)} options is set to false: after the
+When making a requests, the client SSL handshake will sends both `http/1.1` and `h2` protocols and the server decides
+which protocol to use.
+
+=== Making plain text requests
+
+By default, the http client performs HTTP/1.1 requests.
+
+To perform HTTP/2 requests the {@link io.vertx.core.http.HttpClientConfig#setVersions} must be set to `(HTTP/2, HTTP/1.1)`.
+
+[source,$lang]
+----
+{@link examples.HTTP2Examples#example7_2}
+----
+
+The client will do an HTTP/1.1 requests and try an upgrade to HTTP/2.
+
+`h2c` connections can also be established directly, i.e. with connection started with a prior knowledge, when
+{@link io.vertx.core.http.Http2ClientConfig#setClearTextUpgrade(boolean)} options is set to false: after the
 connection is established, the client will send the HTTP/2 connection preface and expect to receive
 the same preface from the server.
 
-The http server may not support HTTP/2, the actual version can be checked
-with {@link io.vertx.core.http.HttpClientResponse#version()} when the response arrives.
+The server may not support HTTP/2, the actual version can be checked with {@link io.vertx.core.http.HttpClientResponse#version()} when the response arrives.
 
-When a client connects to an HTTP/2 server, it sends to the server its {@link io.vertx.core.http.HttpClientOptions#getInitialSettings initial settings}.
+When a client connects to an HTTP/2 server, it sends to the server its {@link io.vertx.core.http.Http2ClientConfig#getInitialSettings initial settings}.
+
 The settings define how the server can use the connection, the default initial settings for a client are the default
 values defined by the HTTP/2 RFC.
 
@@ -944,7 +940,7 @@ Alternatively you can build a client with the builder {@link io.vertx.core.http.
 {@link examples.HTTPExamples#exampleClientBuilder01}
 ----
 
-In addition to {@link io.vertx.core.http.HttpClientOptions} and {@link io.vertx.core.http.PoolOptions}, you
+In addition to {@link io.vertx.core.http.HttpClientConfig} and {@link io.vertx.core.http.PoolOptions}, you
 can set
 
 - a connection event handler notified when the client <<_client_connections,connects>> to a server
@@ -1173,8 +1169,7 @@ obtained from the pool.
 You can set a connect timeout to prevent your application from unresponsive busy client connection pool. The
 `Future<HttpClientRequest>` is failed when a connection is not obtained before the timeout delay.
 
-The connect timeout option is not related to the TCP {@link io.vertx.core.http.HttpClientOptions#setConnectTimeout(int)} option, when a request is made against a pooled HTTP client, the timeout applies to the duration to obtain a connection from the pool to serve the request,
-the timeout might fire because the server does not respond in time or the pool is too busy to serve a request.
+The connect timeout option is not related to the TCP connect timeout, when a request is made against a pooled HTTP client, the timeout applies to the duration to obtain a connection from the pool to serve the request,  the timeout might fire because the server does not respond in time or the pool is too busy to serve a request.
 
 You can configure both timeout using {@link io.vertx.core.http.RequestOptions#setTimeout(long)}
 
@@ -1230,7 +1225,7 @@ An HTTP/2 server is protected against RST flood DDOS attacks (https://github.com
 frames a server can receive in a time window. The default configuration sets the upper bound to `200` for a duration of
 `30` seconds.
 
-You can use {@link io.vertx.core.http.HttpServerOptions#setHttp2RstFloodMaxRstFramePerWindow} and {@link io.vertx.core.http.HttpServerOptions#setHttp2RstFloodWindowDuration} to override these settings.
+You can use {@link io.vertx.core.http.Http2ServerConfig#setRstFloodMaxRstFramePerWindow} and {@link io.vertx.core.http.Http2ServerConfig#setRstFloodWindowDuration} to override these settings.
 
 === Handling HTTP responses
 
@@ -1445,7 +1440,7 @@ Here's an example:
 {@link examples.HTTPExamples#exampleFollowRedirect01}
 ----
 
-The maximum redirects is `16` by default and can be changed with {@link io.vertx.core.http.HttpClientOptions#setMaxRedirects(int)}.
+The maximum redirects is `16` by default and can be changed with {@link io.vertx.core.http.HttpClientConfig#setMaxRedirects(int)}.
 
 [source,$lang]
 ----
@@ -1508,7 +1503,7 @@ Here's an example:
 On the server side a Vert.x http server can be configured to automatically send back 100 Continue interim responses
 when it receives an `Expect: 100-Continue` header.
 
-This is done by setting the option {@link io.vertx.core.http.HttpServerOptions#setHandle100ContinueAutomatically(boolean)}.
+This is done by setting the option {@link io.vertx.core.http.HttpServerConfig#setHandle100ContinueAutomatically(boolean)}.
 
 If you'd prefer to decide whether to send back continue responses manually, then this property should be set to
 `false` (the default), then you can inspect the headers and call {@link io.vertx.core.http.HttpServerResponse#writeContinue()}
@@ -1577,9 +1572,9 @@ frame arrives. Here's an example:
 {@link examples.HTTP2Examples#example15}
 ----
 
-=== Enabling compression on the client
+=== Enabling decompression on the client
 
-The http client comes with support for HTTP Compression out of the box.
+The http client comes with support for HTTP decompression out of the box.
 
 This means the client can let the remote http server know that it supports compression, and will be able to handle
 compressed response bodies.
@@ -1587,8 +1582,8 @@ compressed response bodies.
 An http server is free to either compress with one of the supported compression algorithms or to send the body back
 without compressing it at all. So this is only a hint for the Http server which it may ignore at will.
 
-To tell the http server which compression is supported by the client it will include an `Accept-Encoding` header with
-the supported compression algorithm as value. Multiple compression algorithms are supported. In case of Vert.x this
+To tell the http server which compression algorithm is supported by the client it will include an `Accept-Encoding` header
+with the supported compression algorithm as value. Multiple compression algorithms are supported. In case of Vert.x this
 will result in the following header added:
 
 [source,http]
@@ -1606,10 +1601,10 @@ If the body of the response was compressed via gzip it will include for example 
 Content-Encoding: gzip
 ----
 
-To enable compression set {@link io.vertx.core.http.HttpClientOptions#setDecompressionSupported(boolean)} on the options
+To enable decompression set {@link io.vertx.core.http.HttpClientConfig#setDecompressionEnabled(boolean)} on the options
 used when creating the client.
 
-By default compression is disabled.
+By default decompression is disabled.
 
 === Client side load balancing
 
@@ -1661,8 +1656,8 @@ connections when you're making multiple requests to the same server.
 
 For HTTP/1.x versions, the http client supports pooling of connections, allowing you to reuse connections between requests.
 
-For pooling to work, keep alive must be true using {@link io.vertx.core.http.HttpClientOptions#setKeepAlive(boolean)}
-on the options used when configuring the client. The default value is true.
+For pooling to work, keep alive must be true using {@link io.vertx.core.http.Http1ClientConfig#setKeepAlive(boolean)}
+on the HTTP/1.1 configuration used when configuring the client. The default value is true.
 
 When keep alive is enabled. Vert.x will add a `Connection: Keep-Alive` header to each HTTP/1.0 request sent.
 When keep alive is disabled. Vert.x will add a `Connection: Close` header to each HTTP/1.1 request sent to signal
@@ -1681,7 +1676,7 @@ by the server using the `keep-alive` header:
 keep-alive: timeout=30
 ----
 
-You can set the default timeout using {@link io.vertx.core.http.HttpClientOptions#setKeepAliveTimeout(int)} - any
+You can set the default timeout using {@link io.vertx.core.http.Http1ClientConfig#setKeepAliveTimeout(java.time.Duration)} - any
 connections not used within this timeout will be closed. Please note the timeout value is in seconds not milliseconds.
 
 === HTTP/1.1 pipe-lining
@@ -1691,12 +1686,12 @@ The client also supports pipe-lining of requests on a connection.
 Pipe-lining means another request is sent on the same connection before the response from the preceding one has
 returned. Pipe-lining is not appropriate for all requests.
 
-To enable pipe-lining, it must be enabled using {@link io.vertx.core.http.HttpClientOptions#setPipelining(boolean)}.
+To enable pipe-lining, it must be enabled using {@link io.vertx.core.http.Http1ClientConfig#setPipelining(boolean)}.
 By default, pipe-lining is disabled.
 
 When pipe-lining is enabled requests will be written to connections without waiting for previous responses to return.
 
-The number of pipe-lined requests over a single connection is limited by {@link io.vertx.core.http.HttpClientOptions#setPipeliningLimit}.
+The number of pipe-lined requests over a single connection is limited by {@link io.vertx.core.http.Http1ClientConfig#setPipeliningLimit}.
 This option defines the maximum number of http requests sent to the server awaiting for a response. This limit ensures the
 fairness of the distribution of the client requests over the connections to the same server.
 
@@ -1709,7 +1704,7 @@ When the client needs to use more than a single connection and use pooling, the 
 shall be used.
 
 When it is desirable to limit the number of multiplexed streams per connection and use a connection
-pool instead of a single connection, {@link io.vertx.core.http.HttpClientOptions#setHttp2MultiplexingLimit(int)}
+pool instead of a single connection, {@link io.vertx.core.http.Http2ClientConfig#setMultiplexingLimit(int)}
 can be used.
 
 [source,$lang]
@@ -1724,7 +1719,7 @@ with the {@link io.vertx.core.http.Http2Settings#setMaxConcurrentStreams SETTING
 HTTP/2 connections will not be closed by the client automatically. To close them you can call {@link io.vertx.core.http.HttpConnection#close()}
 or close the client instance.
 
-Alternatively you can set idle timeout using {@link io.vertx.core.http.HttpClientOptions#setIdleTimeout(int)} - any
+Alternatively you can set idle timeout using {@link io.vertx.core.http.HttpClientConfig#setIdleTimeout(java.time.Duration)} - any
 connections not used within this timeout will be closed. Please note the idle timeout value is in seconds not milliseconds.
 
 === Un-pooled client connections
@@ -1798,8 +1793,8 @@ The configuration of an HTTP/2 is configured by the {@link io.vertx.core.http.Ht
 Each endpoint must respect the settings sent by the other side of the connection.
 
 When a connection is established, the client and the server exchange initial settings. Initial settings
-are configured by {@link io.vertx.core.http.HttpClientOptions#setInitialSettings} on the client and
-{@link io.vertx.core.http.HttpServerOptions#setInitialSettings} on the server.
+are configured by {@link io.vertx.core.http.Http2ClientConfig#setInitialSettings} on the client and
+{@link io.vertx.core.http.Http2ServerConfig#setInitialSettings} on the server.
 
 The settings can be changed at any time after the connection is established:
 
@@ -2040,7 +2035,7 @@ method.
 {@link examples.HTTPExamples#setSSLPerRequest(io.vertx.core.http.HttpClient)}
 ----
 
-The {@link io.vertx.core.http.HttpClientOptions#setSsl(boolean)} setting acts as the default client setting.
+The {@link io.vertx.core.http.HttpClientConfig#setSsl(boolean)} setting acts as the default client setting.
 
 The {@link io.vertx.core.http.RequestOptions#setSsl(Boolean)} overrides the default client setting
 
@@ -2226,7 +2221,7 @@ The `CONNECT` protocol uses HTTP/1.x but can connect to HTTP/1.x and HTTP/2 serv
 
 Connecting to `h2c` (unencrypted HTTP/2 servers) is likely not supported by http proxies since they will support HTTP/1.1 only.
 
-The proxy can be configured in the {@link io.vertx.core.http.HttpClientOptions} by setting a {@link io.vertx.core.net.ProxyOptions} object containing proxy type, hostname, port and optionally username and password.
+The proxy can be configured in the {@link io.vertx.core.http.HttpClientConfig} by setting a {@link io.vertx.core.net.ProxyOptions} object containing proxy type, hostname, port and optionally username and password.
 
 Here's an example of using an HTTP proxy:
 
@@ -2261,7 +2256,7 @@ Client connection pooling is aware of proxies (including authentication).
 Consequently, two requests to the same host through different proxies do not share the same pooled connection.
 ====
 
-You can use {@link io.vertx.core.http.HttpClientOptions#setNonProxyHosts} to configure a list of host bypassing the proxy.
+You can use {@link io.vertx.core.net.TcpClientConfig#setNonProxyHosts} to configure a list of host bypassing the proxy.
 The list accepts `*` wildcard for matching domains:
 
 [source,$lang]
@@ -2296,7 +2291,7 @@ https://www.haproxy.org/download/1.8/doc/proxy-protocol.txt[HA PROXY protocol] p
 information such as a client's address across multiple layers of NAT or TCP
 proxies.
 
-HA PROXY protocol can be enabled by setting the option {@link io.vertx.core.http.HttpServerOptions#setUseProxyProtocol(boolean)}
+HA PROXY protocol can be enabled by setting the option {@link io.vertx.core.net.TcpServerConfig#setUseProxyProtocol(boolean)}
 and adding the following dependency in your classpath:
 
 [source,xml]
