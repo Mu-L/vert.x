@@ -157,7 +157,7 @@ public class QuicClientImpl extends QuicEndpointImpl implements QuicClient {
       if (cf == null) {
         SocketAddress bindAddress = config.getLocalAddress();
         if (bindAddress == null) {
-          bindAddress = SocketAddress.inetSocketAddress(0, NetUtil.LOCALHOST.getHostName());
+          bindAddress = SocketAddress.inetSocketAddress(0, "0.0.0.0");
         }
         cf = bind(bindAddress);
         clientFuture = cf;
