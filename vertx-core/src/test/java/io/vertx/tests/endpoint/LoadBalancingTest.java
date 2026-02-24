@@ -38,10 +38,6 @@ public class LoadBalancingTest {
         return "";
       }
       @Override
-      public boolean isAvailable() {
-        return true;
-      }
-      @Override
       public String protocolId() {
         return null;
       }

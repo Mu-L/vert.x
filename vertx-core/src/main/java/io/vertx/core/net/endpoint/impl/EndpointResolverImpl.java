@@ -22,11 +22,9 @@ import io.vertx.core.internal.resource.ResourceManager;
 import io.vertx.core.spi.endpoint.EndpointResolver;
 import io.vertx.core.spi.endpoint.EndpointBuilder;
 
-import java.net.ConnectException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -115,14 +113,7 @@ public class EndpointResolverImpl<S, A extends Address, N> implements EndpointRe
     public ServerEndpoint selectServer(Predicate<ServerEndpoint> filter, String key) {
       ListOfServers listOfServers = endpointResolver.endpoint(state);
       EndpointResolverImpl.View view = listOfServers.viewOf(loadBalancer, filter);
-      ServerEndpoint selected = view.selectEndpoint(key);
-      if (selected != null && !selected.isAvailable()) {
-        // Rebuild views
-        listOfServers.views.clear();
-        view = listOfServers.viewOf(loadBalancer, filter);
-        selected = view.selectEndpoint(key);
-      }
-      return selected;
+      return view.selectEndpoint(key);
     }
 
     private void close() {
@@ -294,7 +285,7 @@ public class EndpointResolverImpl<S, A extends Address, N> implements EndpointRe
       if (view == null) {
         List<ServerEndpoint> l = new ArrayList<>(servers.size());
         for (ServerEndpoint s : servers) {
-          if (s.isAvailable() && filter.test(s)) {
+          if (filter.test(s)) {
             l.add(s);
           }
         }
@@ -320,10 +311,6 @@ public class EndpointResolverImpl<S, A extends Address, N> implements EndpointRe
     @Override
     public String key() {
       return key;
-    }
-    @Override
-    public boolean isAvailable() {
-      return endpointResolver.isAvailable(endpoint);
     }
     @Override
     public Object unwrap() {

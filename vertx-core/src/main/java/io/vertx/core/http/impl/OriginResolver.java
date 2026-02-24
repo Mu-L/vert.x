@@ -14,7 +14,6 @@ import io.vertx.core.Completable;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
-import io.vertx.core.http.HttpConnectOptions;
 import io.vertx.core.http.HttpProtocol;
 import io.vertx.core.internal.VertxInternal;
 import io.vertx.core.internal.resolver.NameResolver;
@@ -266,16 +265,6 @@ public class OriginResolver<L> implements EndpointResolver<Origin, OriginServer,
   @Override
   public boolean isValid(OriginEndpoint<L> state) {
     return state.validate();
-  }
-
-  @Override
-  public boolean isAvailable(OriginServer endpoint) {
-    return endpoint.primary || endpoint.connectFailures.get() == 0;
-  }
-
-  @Override
-  public void reportFailure(OriginServer endpoint, Throwable failure) {
-    endpoint.connectFailures.incrementAndGet();
   }
 
   @Override

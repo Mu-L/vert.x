@@ -14,8 +14,6 @@ import io.vertx.core.http.HttpProtocol;
 import io.vertx.core.net.HostAndPort;
 import io.vertx.core.net.SocketAddress;
 
-import java.util.concurrent.atomic.AtomicInteger;
-
 /**
  * An origin server.
  *
@@ -28,7 +26,6 @@ public class OriginServer {
   public final HostAndPort authority; // the alt-authority field
   public final SocketAddress address; // the server socket address
   public final long maxAge;
-  public final AtomicInteger connectFailures;
   public boolean available;
 
   public OriginServer(boolean primary, HttpProtocol protocol, HostAndPort authority, SocketAddress address, long maxAge) {
@@ -37,7 +34,6 @@ public class OriginServer {
     this.authority = authority;
     this.address = address;
     this.maxAge = maxAge;
-    this.connectFailures = new AtomicInteger();
     this.available = true;
   }
 

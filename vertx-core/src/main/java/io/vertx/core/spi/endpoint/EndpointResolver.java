@@ -78,14 +78,6 @@ public interface EndpointResolver<A extends Address, S, D, E> {
    */
   boolean isValid(D state);
 
-  default boolean isAvailable(S endpoint) {
-    return true;
-  }
-
-  // TODO : remove this I think
-  default void reportFailure(S endpoint, Throwable failure) {
-  }
-
   /**
    *
    * @param address
