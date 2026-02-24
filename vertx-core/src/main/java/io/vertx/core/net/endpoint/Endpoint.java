@@ -15,6 +15,7 @@ import io.vertx.codegen.annotations.Unstable;
 import io.vertx.codegen.annotations.VertxGen;
 
 import java.util.List;
+import java.util.Set;
 import java.util.function.Predicate;
 
 @Unstable
@@ -31,6 +32,13 @@ public interface Endpoint {
    * The servers capable of serving requests for this endpoint.
    */
   List<ServerEndpoint> servers();
+
+  /**
+   * Provide the set of protocols the endpoint can accept.
+   *
+   * @return the set of protocol ids
+   */
+  Set<String> protocols();
 
   /**
    * Select a server.

@@ -47,8 +47,8 @@ public class LoadBalancingCornerCasesTest {
         return null;
       }
       @Override
-      public boolean isAvailable() {
-        return true;
+      public String protocolId() {
+        return null;
       }
       @Override
       public String key() {

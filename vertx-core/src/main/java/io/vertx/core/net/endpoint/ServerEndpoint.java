@@ -34,7 +34,10 @@ public interface ServerEndpoint {
    */
   SocketAddress address();
 
-  boolean isAvailable();
+  /**
+   * @return the server protocol id, optional it can be null
+   */
+  String protocolId();
 
   /**
    * Initiate a request/response interaction with the endpoint represented by this node, the returned interaction gathers statistics.

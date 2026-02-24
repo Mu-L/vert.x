@@ -36,12 +36,22 @@ public interface EndpointResolver<A extends Address, S, D, E> {
   A tryCast(Address address);
 
   /**
-   * Returns the socket address of a given endpoint {@code server}.
+   * Returns the socket address of a given {@code server}.
    *
-   * @param server the endpoint server
+   * @param server the server
    * @return the server socket address
    */
   SocketAddress addressOf(S server);
+
+  /**
+   * Returns the protocol id of a given {@code} server.
+   *
+   * @param server the server
+   * @return the protocol if of the server or {@code null} if unknown
+   */
+  default String protocolOf(S server) {
+    return null;
+  }
 
   /**
    * Resolve an address to the resolver state for this name.
@@ -67,13 +77,6 @@ public interface EndpointResolver<A extends Address, S, D, E> {
    * @return the state validity
    */
   boolean isValid(D state);
-
-  default boolean isAvailable(S endpoint) {
-    return true;
-  }
-
-  default void reportFailure(S endpoint, Throwable failure) {
-  }
 
   /**
    *

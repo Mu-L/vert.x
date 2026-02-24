@@ -31,8 +31,8 @@ public class OriginEndpoint<L> {
   final L list;
   private final Map<OriginAlternative, OriginServer> alternatives;
 
-  Map<OriginAlternative, Long> update;
-  private volatile boolean valid;
+  Map<OriginAlternative, OriginServer> updates;
+  volatile boolean valid;
 
   OriginEndpoint(Origin origin, OriginServer primary, EndpointBuilder<L, OriginServer> builder, Map<OriginAlternative, OriginServer> alternatives) {
     this(origin, List.of(primary), builder, alternatives);
@@ -40,7 +40,7 @@ public class OriginEndpoint<L> {
 
   OriginEndpoint(Origin origin, List<OriginServer> primaries, EndpointBuilder<L, OriginServer> builder, Map<OriginAlternative, OriginServer> alternatives) {
 
-    L list = refresh(builder, primaries, alternatives);
+    L list = buildListOfServers(builder, primaries, alternatives);
 
     this.timestamp = System.currentTimeMillis();
     this.primary = primaries.get(0);
@@ -49,15 +49,20 @@ public class OriginEndpoint<L> {
     this.builder = builder;
     this.alternatives = alternatives;
     this.list = list;
+    this.updates = Collections.emptyMap();
     this.valid = true;
   }
 
-  private L refresh(EndpointBuilder<L, OriginServer> builder, List<OriginServer> primaries, Map<OriginAlternative, OriginServer> alternatives) {
+  private L buildListOfServers(EndpointBuilder<L, OriginServer> builder, List<OriginServer> primaries, Map<OriginAlternative, OriginServer> alternatives) {
     for (OriginServer primary : primaries) {
-      builder = builder.addServer(primary);
+      if (primary.available) {
+        builder = builder.addServer(primary);
+      }
     }
     for (OriginServer alternativeServer : alternatives.values()) {
-      builder.addServer(alternativeServer);
+      if (alternativeServer.available) {
+        builder.addServer(alternativeServer);
+      }
     }
     return builder.build();
   }
@@ -75,14 +80,14 @@ public class OriginEndpoint<L> {
     return valid;
   }
 
-  void clearAlternatives() {
-    update = Collections.emptyMap();
-    valid = alternatives.isEmpty();
+  void updateAlternatives(Map<OriginAlternative, OriginServer> updates) {
+    this.updates = updates;
+    this.valid = false;
   }
 
-  void updateAlternatives(AltSvc.ListOfValue altSvc) {
+  Map<OriginAlternative, Long> shouldRefresh(AltSvc.ListOfValue altSvc) {
     long now = System.currentTimeMillis();
-    Map<OriginAlternative, Long> list = new LinkedHashMap<>();
+    Map<OriginAlternative, Long> updates = new LinkedHashMap<>();
     boolean valid = true;
     for (AltSvc.Value altSvcValue : altSvc) {
       HttpProtocol protocol = HttpProtocol.fromId(altSvcValue.protocolId());
@@ -113,18 +118,15 @@ public class OriginEndpoint<L> {
           long value = now + maxAge * 1000 / 2;
           valid = (value < alternativeCachedExpiration);
         }
-        list.put(alternative, maxAge);
+        updates.put(alternative, maxAge);
       }
     }
     if (valid) {
       // 1. check now we don't have extra unwanted keys
       for (OriginAlternative alternative : alternatives.keySet()) {
-        valid &= list.containsKey(alternative);
+        valid &= updates.containsKey(alternative);
       }
     }
-    if (!valid) {
-      this.update = list;
-      this.valid = false;
-    }
+    return valid ? null : updates;
   }
 }

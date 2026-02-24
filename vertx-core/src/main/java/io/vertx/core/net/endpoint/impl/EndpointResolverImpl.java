@@ -22,11 +22,9 @@ import io.vertx.core.internal.resource.ResourceManager;
 import io.vertx.core.spi.endpoint.EndpointResolver;
 import io.vertx.core.spi.endpoint.EndpointBuilder;
 
-import java.net.ConnectException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -103,6 +101,11 @@ public class EndpointResolverImpl<S, A extends Address, N> implements EndpointRe
     }
 
     @Override
+    public Set<String> protocols() {
+      return endpointResolver.endpoint(state).protocols;
+    }
+
+    @Override
     public List<ServerEndpoint> servers() {
       return endpointResolver.endpoint(state).servers;
     }
@@ -110,14 +113,7 @@ public class EndpointResolverImpl<S, A extends Address, N> implements EndpointRe
     public ServerEndpoint selectServer(Predicate<ServerEndpoint> filter, String key) {
       ListOfServers listOfServers = endpointResolver.endpoint(state);
       EndpointResolverImpl.View view = listOfServers.viewOf(loadBalancer, filter);
-      ServerEndpoint selected = view.selectEndpoint(key);
-      if (selected != null && !selected.isAvailable()) {
-        // Rebuild views
-        listOfServers.views.clear();
-        view = listOfServers.viewOf(loadBalancer, filter);
-        selected = view.selectEndpoint(key);
-      }
-      return selected;
+      return view.selectEndpoint(key);
     }
 
     private void close() {
@@ -254,10 +250,24 @@ public class EndpointResolverImpl<S, A extends Address, N> implements EndpointRe
     // Put stuff here I think ...
     final List<ServerEndpoint> servers;
     final Map<Predicate<ServerEndpoint>, View> views;
+    final Set<String> protocols;
 
     private ListOfServers(List<ServerEndpoint> servers) {
+
+      Set<String> protocols = Collections.emptySet();
+      for (ServerEndpoint server : servers) {
+        String protocol = server.protocolId();
+        if (protocol != null) {
+          if (protocols.isEmpty()) {
+            protocols = new HashSet<>(3);
+          }
+          protocols.add(protocol);
+        }
+      }
+
       this.servers = servers;
       this.views = new ConcurrentHashMap<>();
+      this.protocols = protocols;
     }
 
     @Override
@@ -275,7 +285,7 @@ public class EndpointResolverImpl<S, A extends Address, N> implements EndpointRe
       if (view == null) {
         List<ServerEndpoint> l = new ArrayList<>(servers.size());
         for (ServerEndpoint s : servers) {
-          if (s.isAvailable() && filter.test(s)) {
+          if (filter.test(s)) {
             l.add(s);
           }
         }
@@ -303,10 +313,6 @@ public class EndpointResolverImpl<S, A extends Address, N> implements EndpointRe
       return key;
     }
     @Override
-    public boolean isAvailable() {
-      return endpointResolver.isAvailable(endpoint);
-    }
-    @Override
     public Object unwrap() {
       return endpoint;
     }
@@ -317,6 +323,10 @@ public class EndpointResolverImpl<S, A extends Address, N> implements EndpointRe
     @Override
     public SocketAddress address() {
       return endpointResolver.addressOf(endpoint);
+    }
+    @Override
+    public String protocolId() {
+      return endpointResolver.protocolOf(endpoint);
     }
     @Override
     public ServerInteraction newInteraction() {
@@ -344,9 +354,9 @@ public class EndpointResolverImpl<S, A extends Address, N> implements EndpointRe
         }
         @Override
         public void reportFailure(Throwable failure) {
-          if (!connected && failure instanceof ConnectException) {
-            endpointResolver.reportFailure(endpoint, failure);
-          }
+//          if (!connected && failure instanceof ConnectException) {
+//            endpointResolver.reportFailure(endpoint, failure);
+//          }
           metrics.reportFailure(metric, failure);
         }
       };

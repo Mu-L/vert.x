@@ -86,6 +86,10 @@ class SharedHttpClientConnectionGroup extends ManagedResource {
     this.connectHandler = connectHandler;
   }
 
+  public int size() {
+    return pool.pool.size();
+  }
+
   protected void checkExpired() {
     pool.checkExpired();
   }

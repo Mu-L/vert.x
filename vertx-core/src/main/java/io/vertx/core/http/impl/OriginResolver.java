@@ -11,11 +11,14 @@
 package io.vertx.core.http.impl;
 
 import io.vertx.core.Completable;
+import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
+import io.vertx.core.http.HttpProtocol;
 import io.vertx.core.internal.VertxInternal;
 import io.vertx.core.internal.resolver.NameResolver;
 import io.vertx.core.net.Address;
+import io.vertx.core.net.ClientSSLOptions;
 import io.vertx.core.net.HostAndPort;
 import io.vertx.core.net.SocketAddress;
 import io.vertx.core.net.impl.SocketAddressImpl;
@@ -55,27 +58,158 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class OriginResolver<L> implements EndpointResolver<Origin, OriginServer, OriginEndpoint<L>, L> {
 
   private final VertxInternal vertx;
+  private final HttpClientImpl client;
   private final ConcurrentMap<Origin, OriginEndpoint<L>> endpoints;
   private final boolean resolveAll;
 
-  public OriginResolver(VertxInternal vertx, boolean resolveAll) {
+  public OriginResolver(VertxInternal vertx, boolean resolveAll, HttpClientImpl client) {
     this.vertx = vertx;
     this.endpoints = new ConcurrentHashMap<>();
     this.resolveAll = resolveAll;
+    this.client = client;
   }
 
   public void clearAlternatives(Origin origin) {
     OriginEndpoint<L> endpoint = endpoints.get(origin);
     if (endpoint != null) {
-      endpoint.clearAlternatives();
+      endpoint.updateAlternatives(Collections.emptyMap());
     }
   }
 
-  public void updateAlternatives(Origin origin, AltSvc.ListOfValue altSvc) {
+  public void updateAlternatives(ClientSSLOptions sslOptions,  Origin origin, AltSvc.ListOfValue altSvc) {
     OriginEndpoint<L> endpoint = endpoints.get(origin);
     if (endpoint != null) {
-      endpoint.updateAlternatives(altSvc);
+      Map<OriginAlternative, Long> updates = endpoint.shouldRefresh(altSvc);
+      if (updates != null) {
+        Future<Map<OriginAlternative, OriginServer>> result = compute(sslOptions, origin, endpoint.primary, updates);
+        result.onComplete(ar -> {
+          if (ar.succeeded()) {
+            endpoint.updateAlternatives(ar.result());
+          }
+        });
+      }
     }
+  }
+
+  private Future<Map<OriginAlternative, OriginServer>> compute(
+    ClientSSLOptions sslOptions,
+    Origin address,
+    OriginServer primary,
+    Map<OriginAlternative, Long> updates) {
+
+    class Resolution extends LinkedHashMap<OriginAlternative, Long> {
+      final String host;
+      public Resolution(String host) {
+        this.host = host;
+      }
+    }
+
+    // Keep order
+    Map<OriginAlternative, OriginServer> alternatives = new LinkedHashMap<>();
+    Map<String, Resolution> hosts = new HashMap<>();
+    for (Map.Entry<OriginAlternative, Long> entry : updates.entrySet()) {
+      // Already resolved
+      OriginAlternative alternative = entry.getKey();
+      long maxAge = entry.getValue();
+      if (alternative.authority.host().equals(address.host)) {
+        alternative = new OriginAlternative(
+          alternative.protocol,
+          HostAndPort.authority(address.host, alternative.authority.port()));
+        alternatives.put(alternative, new OriginServer(
+          false,
+          alternative.protocol,
+          alternative.authority,
+          SocketAddress.inetSocketAddress(new InetSocketAddress(((SocketAddressImpl)primary.address).ipAddress(), alternative.authority.port())),
+          maxAge));
+      } else {
+        Resolution resolution = hosts.get(alternative.authority.host());
+        if (resolution == null) {
+          resolution = new Resolution(alternative.authority.host());
+          hosts.put(alternative.authority.host(), resolution);
+        }
+        resolution.put(alternative, maxAge);
+      }
+    }
+
+    List<Resolution> resolutions = new ArrayList<>(hosts.values());
+    int size = hosts.size();
+    List<Future<InetAddress>> list = new ArrayList<>(size);
+    for (Resolution resolution : resolutions) {
+      Future<InetAddress> fut = vertx
+        .nameResolver()
+        .resolve(resolution.host);
+      list.add(fut);
+    }
+
+    Promise<Void> promise = Promise.promise();
+
+    if (size > 0) {
+      AtomicInteger count = new AtomicInteger();
+      Completable<InetAddress> joiner = (result, failure) -> {
+        if (count.incrementAndGet() == size) {
+          for (int i = 0; i < size; i++) {
+            Resolution r = resolutions.get(i);
+            Future<InetAddress> f = list.get(i);
+            if (f.succeeded()) {
+              for (Map.Entry<OriginAlternative, Long> entry : r.entrySet()) {
+                OriginAlternative alternative = entry.getKey();
+                long maxAge = entry.getValue();
+                alternatives.put(alternative,
+                  new OriginServer(
+                    false,
+                    alternative.protocol,
+                    alternative.authority,
+                    SocketAddress.inetSocketAddress(new InetSocketAddress(f.result(), alternative.authority.port())),
+                    maxAge)
+                );
+              }
+            }
+          }
+          promise.succeed();
+        }
+      };
+      for (Future<InetAddress> f : list) {
+        f.onComplete(joiner);
+      }
+    } else {
+      promise.succeed();
+    }
+
+    Promise<Map<OriginAlternative, OriginServer>> p2 = Promise.promise();
+    promise
+      .future()
+      .onComplete(ar -> {
+        if (ar.succeeded()) {
+
+
+          List<Future<?>> l = new ArrayList<>();
+          for (Map.Entry<OriginAlternative, OriginServer> e : alternatives.entrySet()) {
+            Future<?> f = client.checkConnect(primary, e.getKey(), e.getValue(), sslOptions);
+            l.add(f);
+          }
+
+          CompositeFuture cf = Future.join(l);
+          cf.onComplete(ar2 -> {
+
+            Iterator<Map.Entry<OriginAlternative, OriginServer>> it = alternatives.entrySet().iterator();
+            Map<OriginAlternative, OriginServer> newOne = new LinkedHashMap<>();
+            int idx = 0;
+            while (it.hasNext()) {
+              Map.Entry<OriginAlternative, OriginServer> entry = it.next();
+              newOne.put(entry.getKey(), entry.getValue());
+              entry.getValue().available = cf.succeeded(idx++);
+            }
+            p2.complete(newOne);
+          });
+
+        } else {
+          p2.fail(ar.cause());
+        }
+      });
+
+    // Now validate
+
+    return p2.future();
   }
 
   @Override
@@ -86,6 +220,12 @@ public class OriginResolver<L> implements EndpointResolver<Origin, OriginServer,
   @Override
   public SocketAddress addressOf(OriginServer server) {
     return server.address != null ? server.address : null;
+  }
+
+  @Override
+  public String protocolOf(OriginServer server) {
+    HttpProtocol protocol = server.protocol;
+    return protocol != null ? protocol.id() : null;
   }
 
   @Override
@@ -128,103 +268,10 @@ public class OriginResolver<L> implements EndpointResolver<Origin, OriginServer,
   }
 
   @Override
-  public boolean isAvailable(OriginServer endpoint) {
-    return endpoint.primary || endpoint.connectFailures.get() == 0;
-  }
-
-  @Override
-  public void reportFailure(OriginServer endpoint, Throwable failure) {
-    endpoint.connectFailures.incrementAndGet();
-  }
-
-  @Override
   public Future<OriginEndpoint<L>> refresh(Origin address, OriginEndpoint<L> state) {
-
-    Map<OriginAlternative, Long> update = state.update;
-    if (update == null || update.isEmpty()) {
-      endpoints.remove(address, state);
-      return null;
-    }
-
-    class Resolution {
-      String host;
-      Map<OriginAlternative, Long> alternatives = new LinkedHashMap<>();
-    }
-
-    // Maintain order
-    Map<OriginAlternative, OriginServer> alternatives = new LinkedHashMap<>();
-    Map<String, Resolution> hosts = new HashMap<>();
-    for (Map.Entry<OriginAlternative, Long> entry : update.entrySet()) {
-      // Already resolved
-      OriginAlternative alternative = entry.getKey();
-      long maxAge = entry.getValue();
-      if (alternative.authority.host().equals(address.host)) {
-        alternative = new OriginAlternative(
-          alternative.protocol,
-          HostAndPort.authority(address.host, alternative.authority.port()));
-        alternatives.put(alternative, new OriginServer(
-          false,
-          alternative.protocol,
-          alternative.authority,
-          SocketAddress.inetSocketAddress(new InetSocketAddress(((SocketAddressImpl)state.primary.address).ipAddress(), alternative.authority.port())),
-          maxAge));
-      } else {
-        Resolution resolution = hosts.get(alternative.authority.host());
-        if (resolution == null) {
-          resolution = new Resolution();
-          resolution.host = alternative.authority.host();
-          hosts.put(alternative.authority.host(), resolution);
-        }
-        resolution.alternatives.put(alternative, maxAge);
-      }
-    }
-    int size = hosts.size();
-    if (size == 0) {
-      OriginEndpoint<L> endpoint = new OriginEndpoint<>(address, state.primary, state.builder, alternatives);
-      endpoints.put(address, endpoint);
-      return Future.succeededFuture(endpoint);
-    }
-
-    List<Resolution> resolutions = new ArrayList<>(hosts.values());
-    List<Future<InetAddress>> list = new ArrayList<>(size);
-    for (Resolution resolution : resolutions) {
-      Future<InetAddress> fut = vertx.nameResolver().resolve(resolution.host);
-      list.add(fut);
-    }
-
-    Promise<OriginEndpoint<L>> promise = Promise.promise();
-
-    AtomicInteger count = new AtomicInteger();
-    Completable<InetAddress> joiner = (result, failure) -> {
-      if (count.incrementAndGet() == size) {
-        for (int i = 0;i < size;i++) {
-          Resolution r = resolutions.get(i);
-          Future<InetAddress> f = list.get(i);
-          for (Map.Entry<OriginAlternative, Long> entry : r.alternatives.entrySet()) {
-            if (f.succeeded()) {
-              OriginAlternative alternative = entry.getKey();
-              long maxAge = entry.getValue();
-              alternatives.put(alternative,
-                new OriginServer(
-                  false,
-                  alternative.protocol,
-                  alternative.authority,
-                  SocketAddress.inetSocketAddress(new InetSocketAddress(f.result(), alternative.authority.port())),
-                  maxAge)
-              );
-            }
-          }
-        }
-
-        OriginEndpoint<L> endpoint = new OriginEndpoint<>(address, state.primary, state.builder, alternatives);
-        endpoints.put(address, endpoint);
-        promise.complete(endpoint);
-      }
-    };
-    for (Future<InetAddress> f : list) {
-      f.onComplete(joiner);
-    }
-    return promise.future();
+    OriginEndpoint<L> endpoint = new OriginEndpoint<>(address, state.primary, state.builder, state.updates);
+    endpoints.put(address, endpoint);
+    return Future.succeededFuture(endpoint);
   }
 
   @Override

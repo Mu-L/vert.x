@@ -35,6 +35,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.regex.Pattern;
@@ -100,7 +101,7 @@ public class HttpClientImpl extends HttpClientBase implements HttpClientInternal
 
     this.tcpTransport = tcpTransport;
     this.quicTransport = quicTransport;
-    this.originEndpoints = new OriginResolver<>(vertx, resolveAll);
+    this.originEndpoints = new OriginResolver<>(vertx, resolveAll, this);
     this.resolver = (EndpointResolverInternal) resolver;
     this.originResolver = new EndpointResolverImpl<>(vertx, originEndpoints, resolveAll ? loadBalancer : LoadBalancer.FIRST, resolverKeepAlive.toMillis());
     this.poolOptions = poolOptions;
@@ -187,9 +188,10 @@ public class HttpClientImpl extends HttpClientBase implements HttpClientInternal
       ClientMetrics clientMetrics = HttpClientImpl.this.httpMetrics != null ? HttpClientImpl.this.httpMetrics.createEndpointMetrics(address, maxPoolSize) : null;
       PoolMetrics poolMetrics = HttpClientImpl.this.httpMetrics != null ? vertx.metrics().createPoolMetrics("http", key.authority.toString(), maxPoolSize) : null;
       ProxyOptions proxyOptions = key.proxyOptions;
+      ClientSSLOptions sslOptions = key.sslOptions;
       if (proxyOptions != null && !key.ssl && proxyOptions.getType() == ProxyType.HTTP) {
         SocketAddress server = SocketAddress.inetSocketAddress(proxyOptions.getPort(), proxyOptions.getHost());
-        key = new EndpointKey(key.ssl, key.protocol, key.sslOptions, proxyOptions, server, key.authority);
+        key = new EndpointKey(key.ssl, key.protocol, sslOptions, proxyOptions, server, key.authority);
         proxyOptions = null;
       }
       HttpVersion protocol = key.protocol;
@@ -199,7 +201,7 @@ public class HttpClientImpl extends HttpClientBase implements HttpClientInternal
       } else {
         protocols = List.of(protocol);
       }
-      HttpConnectParams params = new HttpConnectParams(protocols, key.sslOptions, proxyOptions, key.ssl);
+      HttpConnectParams params = new HttpConnectParams(protocols, sslOptions, proxyOptions, key.ssl);
       Function<SharedHttpClientConnectionGroup, SharedHttpClientConnectionGroup.Pool> p = group -> {
         int queueMaxSize = poolOptions.getMaxWaitQueueSize();
         int http1MaxSize = poolOptions.getHttp1MaxSize();
@@ -220,7 +222,7 @@ public class HttpClientImpl extends HttpClientBase implements HttpClientInternal
               if (altSvc instanceof AltSvc.Clear) {
                 originEndpoints.clearAlternatives(evt.origin);
               } else if (altSvc instanceof AltSvc.ListOfValue) {
-                originEndpoints.updateAlternatives(evt.origin, (AltSvc.ListOfValue)altSvc);
+                originEndpoints.updateAlternatives(sslOptions, evt.origin, (AltSvc.ListOfValue)altSvc);
               }
             });
           }
@@ -593,17 +595,49 @@ public class HttpClientImpl extends HttpClientBase implements HttpClientInternal
         // For HTTPS we must handle SNI to consider an alternative
         HostAndPort altUsed;
         if (followAlternativeServices && server instanceof Origin && ("https".equals((originServer = (Origin)server).scheme) && originServer.host.indexOf('.') > 0)) {
-          lookup = endpoint.selectServer(s -> {
-            OriginServer unwrap = (OriginServer) s.unwrap();
-            return protocol_ == unwrap.protocol;
-          });
-          protocol = protocol_;
+          if (protocol_ != null) {
+            ProtocolFilter filter;
+            switch (protocol_) {
+              case H3:
+                filter = ProtocolFilter.H3;
+                break;
+              case H2:
+                filter = ProtocolFilter.H2;
+                break;
+              case HTTP_1_1:
+                filter = ProtocolFilter.HTTP_1_1;
+                break;
+              case HTTP_1_0:
+                filter = ProtocolFilter.HTTP_1_0;
+                break;
+              default:
+                throw new AssertionError();
+            }
+            lookup = endpoint.selectServer(filter);
+            protocol = protocol_;
+          } else {
+            Set<String> protocols = endpoint.protocols();
+            if (!protocols.isEmpty()) {
+              List<ProtocolFilter> list = List.of(ProtocolFilter.H3, ProtocolFilter.H2, ProtocolFilter.HTTP_1_1, ProtocolFilter.HTTP_1_0);
+              lookup = null;
+              protocol = null;
+              for (ProtocolFilter candidate : list) {
+                if (protocols.contains(candidate.protocol.id())) {
+                  lookup = endpoint.selectServer(candidate);
+                  protocol = candidate.protocol;
+                }
+              }
+            } else {
+              lookup = null;
+              protocol = null;
+            }
+          }
           if (lookup == null) {
             altUsed = null;
             lookup = endpoint.selectServer();
           } else {
             OriginServer unwrap = (OriginServer) lookup.unwrap();
-            altUsed = unwrap.authority;
+            altUsed = unwrap.primary ? null : unwrap.authority;
           }
         } else {
           protocol = protocol_;
@@ -615,23 +649,32 @@ public class HttpClientImpl extends HttpClientBase implements HttpClientInternal
           throw new IllegalStateException("No results for " + server);
         }
         SocketAddress address = lookup2.address();
-        EndpointKey key = new EndpointKey(useSSL, protocol != null ? protocol.version() : null, sslOptions, null, address, authority != null ? authority : HostAndPort.create(address.host(), address.port()));
-        return resourceManager.withResourceAsync(key, httpEndpointProvider(followAlternativeServices && useSSL, transport), (e, created) -> {
-          Future<Lease<HttpClientConnection>> fut2 = e.requestConnection(streamCtx, connectTimeout);
-          ServerInteraction endpointRequest = lookup2.newInteraction();
-          return fut2.andThen(ar -> {
-            if (ar.failed()) {
-              endpointRequest.reportFailure(ar.cause());
+        return getPool(
+          followAlternativeServices && useSSL && altUsed == null,
+          useSSL,
+          protocol,
+          sslOptions,
+          address,
+          authority != null ? authority : HostAndPort.create(address.host(), address.port()),
+          new Function<SharedHttpClientConnectionGroup, Future<ConnectionObtainedResult>>() {
+            @Override
+            public Future<ConnectionObtainedResult> apply(SharedHttpClientConnectionGroup pool) {
+              Future<Lease<HttpClientConnection>> fut2 = pool.requestConnection(streamCtx, connectTimeout);
+              ServerInteraction endpointRequest = lookup2.newInteraction();
+              return fut2.andThen(ar -> {
+                if (ar.failed()) {
+                  endpointRequest.reportFailure(ar.cause());
+                }
+              }).compose(lease -> {
+                HttpClientConnection conn = lease.get();
+                return conn.createStream(streamCtx).map(stream -> {
+                  HttpClientStream wrapped = new StatisticsGatheringHttpClientStream(stream, endpointRequest);
+                  wrapped.closeHandler(v -> lease.recycle());
+                  return new ConnectionObtainedResult(wrapped, lease, altUsed);
+                });
+              });
             }
-          }).compose(lease -> {
-            HttpClientConnection conn = lease.get();
-            return conn.createStream(streamCtx).map(stream -> {
-              HttpClientStream wrapped = new StatisticsGatheringHttpClientStream(stream, endpointRequest);
-              wrapped.closeHandler(v -> lease.recycle());
-              return new ConnectionObtainedResult(wrapped, lease, altUsed);
-            });
           });
-        });
       });
     if (future == null) {
       // I think this is not possible - so remove it
@@ -639,6 +682,42 @@ public class HttpClientImpl extends HttpClientBase implements HttpClientInternal
     } else {
       return wrap(method, requestURI, headers, traceOperation, idleTimeout, followRedirects, null, future);
     }
+  }
+
+  Future<?> checkConnect(OriginServer primary, OriginAlternative alternative, OriginServer server, ClientSSLOptions sslOptions) {
+    return getPool(false, true, alternative.protocol, sslOptions, server.address, primary.authority, new Function<SharedHttpClientConnectionGroup, Future<Boolean>>() {
+      @Override
+      public Future<Boolean> apply(SharedHttpClientConnectionGroup group) {
+        if (group.size() > 0) {
+          return Future.succeededFuture();
+        } else {
+          // Get something better
+          Future<Lease<HttpClientConnection>> f = group.requestConnection(vertx.getOrCreateContext(), 10_000);
+          return f.map(lease -> {
+            lease.recycle();
+            return null;
+          });
+        }
+      }
+    });
+  }
+
+  <T> Future<T> getPool(boolean resolveOrigin,
+                        boolean useSSL,
+                        HttpProtocol protocol,
+                        ClientSSLOptions sslOptions,
+                        SocketAddress server,
+                        HostAndPort authority,
+                        Function<SharedHttpClientConnectionGroup, Future<T>> function) {
+    EndpointKey key = new EndpointKey(useSSL, protocol != null ? protocol.version() : null, sslOptions, null, server, authority);
+    HttpClientTransport transport;
+    if (protocol != null && protocol.version() == HttpVersion.HTTP_3) {
+      transport = quicTransport;
+    } else {
+      transport = tcpTransport;
+    }
+    Function<EndpointKey, SharedHttpClientConnectionGroup> provider = httpEndpointProvider(resolveOrigin, transport);
+    return resourceManager.withResourceAsync(key, provider, (group, created) -> function.apply(group));
   }
 
   private Future<HttpClientRequest> wrap(HttpMethod method,
