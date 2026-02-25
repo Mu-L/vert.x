@@ -20,12 +20,15 @@ import io.vertx.core.internal.http.HttpClientInternal;
 import io.vertx.core.internal.net.endpoint.EndpointResolverInternal;
 import io.vertx.core.net.ClientSSLOptions;
 import io.vertx.core.net.KeyCertOptions;
+import io.vertx.core.net.QuicClientConfig;
 import io.vertx.core.net.ServerSSLOptions;
+import io.vertx.core.net.SocketAddress;
 import io.vertx.core.net.endpoint.Endpoint;
 import io.vertx.test.core.VertxTestBase;
 import io.vertx.test.proxy.Proxy;
 import io.vertx.test.tls.Cert;
 import junit.framework.AssertionFailedError;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 
@@ -130,6 +133,11 @@ public class HttpAlternativesTest extends VertxTestBase {
   @Test
   public void testHttp1ToHttp2ProtocolSameHost() {
     testFollowProtocol(HttpVersion.HTTP_1_1, HttpVersion.HTTP_2, "h2=\":4044\"", "host2.com:4044");
+  }
+
+  @Test
+  public void testHttp1ToHttp2MultipleProtocols() {
+    testFollowProtocol(HttpVersion.HTTP_1_1, HttpVersion.HTTP_2, "h2=\":4044\",another=\":4045\"", "host2.com:4044");
   }
 
   @Test
@@ -473,5 +481,31 @@ public class HttpAlternativesTest extends VertxTestBase {
       }
     }
     return map.size();
+  }
+
+  @Ignore
+  @Test
+  public void testGoogle() throws Exception {
+    HttpClientConfig config = new HttpClientConfig()
+      .setFollowAlternativeServices(true)
+      .setVersions(HttpVersion.HTTP_1_1, HttpVersion.HTTP_3)
+      .setSsl(true);
+    HttpClientAgent client = vertx.createHttpClient(config, new ClientSSLOptions().setTrustAll(true));
+
+    HttpVersion version;
+    int count = 0;
+    do {
+      version = client.request(new RequestOptions().setAbsoluteURI("https://google.com"))
+        .compose(request -> request
+          .send()
+          .compose(HttpClientResponse::end).map(request.version()))
+        .await();
+      if (version == HttpVersion.HTTP_3) {
+        break;
+      }
+      Thread.sleep(100);
+    }
+    while (count++ < 20);
+    assertEquals(HttpVersion.HTTP_3, version);
   }
 }

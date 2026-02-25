@@ -39,7 +39,7 @@ public interface AltSvc {
   /**
    * Alt-Svc: Value.
    */
-  public static class Value {
+  class Value {
     private String protocolId;
     private String rawAltAuthority;
     private HostAndPort altAuthority;
@@ -81,7 +81,7 @@ public interface AltSvc {
     }
   }
 
-  public static AltSvc parseAltSvc(String s) {
+  static AltSvc parseAltSvc(String s) {
     if (s.equals("clear")) {
       return Clear.INSTANCE;
     }
@@ -114,9 +114,9 @@ public interface AltSvc {
     return res == s.length() ? value : null;
   }
 
-  public static int parseAltValue(String s, int from, int to, Value value) {
+  static int parseAltValue(String s, int from, int to, Value value) {
     int res = parseAltValue(s, from, to, value::setAlternative, value::addParameter);
-    if (res == s.length()) {
+    if (res > from) {
       // Now parse raw alt-authority into an HostAndPort
       String raw = value.rawAltAuthority;
       String host;
