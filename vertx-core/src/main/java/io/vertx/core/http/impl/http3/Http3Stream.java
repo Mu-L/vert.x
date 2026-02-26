@@ -183,8 +183,6 @@ public abstract class Http3Stream<S extends Http3Stream<S, C>, C extends Http3Co
                 content = unknownFrame.content();
                 buffer = VertxHandler.copyBuffer(content);
                 handleUnknownFrame(unknownFrame.type(), BufferInternal.buffer(buffer));
-              } else {
-                System.out.println("Frame type " + http3Frame.type() + " not implemented");
               }
               break;
           }

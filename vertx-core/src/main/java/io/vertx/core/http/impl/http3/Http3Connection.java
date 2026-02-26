@@ -127,8 +127,6 @@ public abstract class Http3Connection implements HttpConnection {
           Http3SettingsFrame settingsFrame = (Http3SettingsFrame)msg;
           handleSettings(settingsFrame.settings());
         }
-      } else {
-        System.out.println("Unhandled message " + msg);
       }
     });
   }
