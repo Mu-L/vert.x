@@ -74,33 +74,6 @@ public class HTTP2Examples {
     });
   }
 
-  public void example6(HttpServerRequest request) {
-
-    HttpServerResponse response = request.response();
-
-    // Push main.js to the client
-    response
-      .push(HttpMethod.GET, "/main.js")
-      .onComplete(ar -> {
-
-        if (ar.succeeded()) {
-
-          // The server is ready to push the response
-          HttpServerResponse pushedResponse = ar.result();
-
-          // Send main.js response
-          pushedResponse.
-            putHeader("content-type", "application/json").
-            end("alert(\"Push response hello\")");
-        } else {
-          System.out.println("Could not push client resource " + ar.cause());
-        }
-      });
-
-    // Send the requested resource
-    response.sendFile("<html><head><script src=\"/main.js\"></script></head><body></body></html>");
-  }
-
   public void example7_1(Vertx vertx) {
 
     HttpClientConfig config = new HttpClientConfig()
@@ -148,43 +121,6 @@ public class HTTP2Examples {
       if (err instanceof StreamResetException) {
         StreamResetException reset = (StreamResetException) err;
         System.out.println("Stream reset " + reset.getCode());
-      }
-    });
-  }
-
-  public void example13(HttpClient client) {
-
-    client.request(HttpMethod.GET, "/index.html")
-      .onSuccess(request -> {
-
-        request
-          .response().onComplete(response -> {
-            // Process index.html response
-          });
-
-        // Set a push handler to be aware of any resource pushed by the server
-        request.pushHandler(pushedRequest -> {
-
-          // A resource is pushed for this request
-          System.out.println("Server pushed " + pushedRequest.path());
-
-          // Set an handler for the response
-          pushedRequest.response().onComplete(pushedResponse -> {
-            System.out.println("The response for the pushed request");
-          });
-        });
-
-        // End the request
-        request.end();
-    });
-  }
-
-  public void example14(HttpClientRequest request) {
-    request.pushHandler(pushedRequest -> {
-      if (pushedRequest.path().equals("/main.js")) {
-        pushedRequest.reset();
-      } else {
-        // Handle it
       }
     });
   }

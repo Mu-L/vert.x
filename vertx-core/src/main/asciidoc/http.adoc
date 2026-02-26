@@ -701,25 +701,6 @@ The request handler are notified of stream reset events with the {@link io.vertx
 {@link examples.HTTP2Examples#example5}
 ----
 
-==== Server push
-
-Server push is a new feature of HTTP/2 that enables sending multiple responses in parallel for a single client request.
-
-When a server process a request, it can push a request/response to the client:
-
-[source,$lang]
-----
-{@link examples.HTTP2Examples#example6}
-----
-
-When the server is ready to push the response, the push response handler is called and the handler can send the response.
-
-The push response handler may receive a failure, for instance the client may cancel the push because it already has `main.js` in its
-cache and does not want it anymore.
-
-The {@link io.vertx.core.http.HttpServerResponse#push} method must be called before the initiating response ends, however
-the pushed response can be written after.
-
 ==== Handling exceptions
 
 You can set an {@link io.vertx.core.http.HttpServer#exceptionHandler(io.vertx.core.Handler)} to receive any
@@ -1537,27 +1518,6 @@ and will send and receive buffers.
 
 `connect` works like `send`, but it reconfigures the transport to exchange
 raw buffers.
-
-==== Client push
-
-Server push is a new feature of HTTP/2 that enables sending multiple responses in parallel for a single client request.
-
-A push handler can be set on a request to receive the request/response pushed by the server:
-
-[source,$lang]
-----
-{@link examples.HTTP2Examples#example13}
-----
-
-If the client does not want to receive a pushed request, it can reset the stream:
-
-[source,$lang]
-----
-{@link examples.HTTP2Examples#example14}
-----
-
-When no handler is set, any stream pushed will be automatically cancelled by the client with
-a stream reset (`8` error code).
 
 ==== Receiving custom HTTP/2 frames
 
